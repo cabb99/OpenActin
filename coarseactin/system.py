@@ -1,9 +1,10 @@
 """
-actinmodule.py
-Coarse Grained Model of Actesearch
-
-Handles the primary functions
+system.py
+Handles the system class for openMM
 """
+
+
+
 
 
 def canvas(with_attribution=True):

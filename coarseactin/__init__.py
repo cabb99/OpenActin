@@ -1,10 +1,12 @@
 """
 CoarseActinModel
-Coarse Grained Model of Actesearch
+Coarse Grained Model of Actin
 """
 
 # Add imports here
-from .actinmodule import *
+#from .system import *
+#from .actin import *
+from .Scene import *
 
 # Handle versioneer
 from ._version import get_versions

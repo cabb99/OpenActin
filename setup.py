@@ -1,10 +1,11 @@
 """
 CoarseActinModel
-Coarse Grained Model of Actesearch
+Coarse Grained Model of F-Actin
 """
 import sys
 from setuptools import setup, find_packages
 import versioneer
+import glob
 
 short_description = __doc__.split("\n")
 
@@ -55,5 +56,20 @@ setup(
 
     # Manual control if final package is compressible or not, set False to prevent the .egg from being made
     # zip_safe=False,
-
+    url = 'https://github.com/cabb99/coarseactin', 
+    download_url = '',
+    keywords = ['actin', 'forcefield', 'openmm'],
+    package_data={'coarseactin': glob.glob("data/*")},
+    include_package_data=True,
+    classifiers=[
+        'Development Status :: 3 - Alpha', 
+        'Intended Audience :: Science/Research', 
+        'Topic :: Scientific/Engineering :: Physics', 
+        'License :: OSI Approved :: MIT License', 
+        'Programming Language :: Python :: 3', 
+        'Programming Language :: Python :: 3.4',
+        'Programming Language :: Python :: 3.5',
+        'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.7',
+        ],
 )
