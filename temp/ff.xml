@@ -1,0 +1,50 @@
+<ForceField>
+  <AtomTypes>
+    <!-- Actin particles -->
+    <Type name="A1" class="A" element="C" mass="16300"/>
+    <Type name="A2" class="A" element="O" mass="4060"/>
+    <Type name="A3" class="A" element="N" mass="11400"/>
+    <Type name="A4" class="A" element="P" mass="21500"/>
+    <Type name="Av" class="A" element="H" mass="0"/>
+    <!-- CAMKII particles -->
+    <Type name="Cx" class="D" element="Mg" mass="100000"/>#24000
+    <Type name="Cc" class="D" element="Fe" mass="0"/>
+    <Type name="Cm" class="D" element="C" mass="0"/>
+  </AtomTypes>
+  <Residues>
+    <Residue name="ACT">
+      <Atom name="A1"  type="A1"/>
+      <Atom name="A2"  type="A2"/>
+      <Atom name="A3"  type="A3"/>
+      <Atom name="A4"  type="A4"/>
+      <Atom name="A5"  type="Av"/>
+      <Atom name="A6"  type="Av"/>
+      <Atom name="A7"  type="Av"/>
+    </Residue>
+    <!-- Actin particles without binding sites -->
+    <Residue name="ACD">
+      <Atom name="A1"  type="A1"/>
+      <Atom name="A2"  type="A2"/>
+      <Atom name="A3"  type="A3"/>
+      <Atom name="A4"  type="A4"/>
+    </Residue>
+    <Residue name="CAM">
+      <Atom name="Cx1" type="Cx"/>
+      <Atom name="Cx2" type="Cx"/>
+      <Atom name="Cx3" type="Cx"/>
+      <Atom name="Cc"  type="Cc"/>
+      <Atom name="C01" type="Cm"/>
+      <Atom name="C02" type="Cm"/>
+      <Atom name="C03" type="Cm"/>
+      <Atom name="C04" type="Cm"/>
+      <Atom name="C05" type="Cm"/>
+      <Atom name="C06" type="Cm"/>
+      <Atom name="C07" type="Cm"/>
+      <Atom name="C08" type="Cm"/>
+      <Atom name="C09" type="Cm"/>
+      <Atom name="C10" type="Cm"/>
+      <Atom name="C11" type="Cm"/>
+      <Atom name="C12" type="Cm"/>
+    </Residue>
+  </Residues>
+</ForceField>
