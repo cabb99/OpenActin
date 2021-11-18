@@ -1,6 +1,11 @@
 import pandas
 import numpy
 
+'''
+Python library to allow easy handling of coordinate files for molecular dynamics using pandas DataFrames.
+'''
+
+
 if __name__ == "__main__":
     import utils
 else:
@@ -8,6 +13,8 @@ else:
 
 
 class Scene(pandas.DataFrame):
+
+    # Required
     protein_residues = {'ALA': 'A', 'CYS': 'C', 'ASP': 'D', 'GLU': 'E',
                         'PHE': 'F', 'GLY': 'G', 'HIS': 'H', 'ILE': 'I',
                         'LYS': 'K', 'LEU': 'L', 'MET': 'M', 'ASN': 'N',
@@ -355,18 +362,25 @@ class Scene(pandas.DataFrame):
             self.__dict__[attr] = value
     """
 
-
 if __name__ == '__main__':
     particles = pandas.DataFrame([[0, 0, 0],
                                   [0, 1, 0],
                                   [0, 0, 1]],
                                  columns=['x', 'y', 'z'])
-    s = Scene(particles)
-    s.write_pdb('test.pdb')
-    s.from_pdb('test.pdb')
+    s1 = Scene(particles)
+    s1.write_pdb('test.pdb')
+    s2 = Scene.from_pdb('test.pdb')
 
-    s.write_cif('test.cif')
-    s.from_cif('test.cif')
+    s2.write_cif('test.cif')
+    s3 = Scene.from_cif('test.cif')
+    s3.write_pdb('test2.pdb')
+    s4 = Scene.from_pdb('test.pdb')
+
+
+    s1.to_csv('particles_1.csv')
+    s2.to_csv('particles_2.csv')
+    s3.to_csv('particles_3.csv')
+    s4.to_csv('particles_4.csv')
 
 """
 import numpy as np

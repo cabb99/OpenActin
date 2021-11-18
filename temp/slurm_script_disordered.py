@@ -1101,8 +1101,8 @@ if __name__=='__main__':
 
     parameters={"epsilon":[100],
                 "aligned":[False],
-                "actinLen":[50,100],
-                "layers":[1,2,3],
+                "actinLen":[500],
+                "layers":[2],
     #            "repetition":range(3),
                 "disorder":[.5,.75],
                 "temperature":[300],
@@ -1111,9 +1111,9 @@ if __name__=='__main__':
                 "run_time":[20],
                 "CaMKII_Force":['multigaussian','doublegaussian','singlegaussian'],
                 "simulation_platform":["OpenCL"]}
-    test_parameters={"simulation_platform":"OpenCL",
-                    "frequency":1,
-                    "run_time":0.01,
+    test_parameters={"simulation_platform":"CUDA",
+                    "frequency":1000,
+                    "run_time":1,
                     "CaMKII_Force":'doublegaussian'
                     }
     job_id=0
