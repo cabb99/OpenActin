@@ -1,0 +1,41 @@
+data_pdbx
+# 
+loop_
+_atom_site.group_PDB 
+_atom_site.id 
+_atom_site.type_symbol 
+_atom_site.label_atom_id 
+_atom_site.label_alt_id 
+_atom_site.label_comp_id 
+_atom_site.label_asym_id 
+_atom_site.label_entity_id 
+_atom_site.label_seq_id 
+_atom_site.pdbx_PDB_ins_code 
+_atom_site.Cartn_x 
+_atom_site.Cartn_y 
+_atom_site.Cartn_z 
+_atom_site.occupancy 
+_atom_site.B_iso_or_equiv 
+_atom_site.Cartn_x_esd 
+_atom_site.Cartn_y_esd 
+_atom_site.Cartn_z_esd 
+_atom_site.occupancy_esd 
+_atom_site.B_iso_or_equiv_esd 
+_atom_site.pdbx_formal_charge 
+_atom_site.auth_seq_id 
+_atom_site.auth_comp_id 
+_atom_site.auth_asym_id 
+_atom_site.auth_atom_id 
+_atom_site.pdbx_PDB_model_num 
+ATOM   1    N  N   . THR A 1 13  ? 67.946 33.337 16.826      1.00 102.16 ? ? ? ? ? ? 12   THR A N   1 
+ATOM   2    C  CA  . THR A 1 13  ? 66.915 34.315 17.328      1.00 102.16 ? ? ? ? ? ? 12   THR A CA  1 
+ATOM   3    C  C   . THR A 1 13  ? 66.570 35.274 16.204      1.00 102.16 ? ? ? ? ? ? 12   THR A C   1 
+ATOM   4    O  O   . THR A 1 13  ? 66.803 36.487 16.305      1.00 102.16 ? ? ? ? ? ? 12   THR A O   1 
+ATOM   5    C  CB  . THR A 1 13  ? 67.518 35.046 18.502      1.00 102.16 ? ? ? ? ? ? 12   THR A CB  1 
+ATOM   6    O  OG1 . THR A 1 13  ? 66.587 35.986 19.020  1.00 102.16 ? ? ? ? ? ? 12   THR A OG1 1 
+ATOM   7    C  CG2 . THR A 1 13  ? 68.790 35.815 18.139  1.00 102.16 ? ? ? ? ? ? 12   THR A CG2 1 
+ATOM   8    N  N   . MET A 1 14  ? 66.002 34.684 15.140  1.00 89.79  ? ? ? ? ? ? 13   MET A N   1 
+ATOM   9    C  CA  . MET A 1 14  ? 65.641 35.451 13.882  1.00 89.79  ? ? ? ? ? ? 13   MET A CA  1 
+ATOM   10   C  C   . MET A 1 14  ? 64.509 36.438 14.049  1.00 89.79  ? ? ? ? ? ? 13   MET A C   1 
+ATOM   11   O  O   . MET A 1 14  ? 64.222 37.242 13.151  1.00 89.79  ? ? ? ? ? ? 13   MET A O   1 
+

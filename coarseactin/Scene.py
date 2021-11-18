@@ -1,9 +1,10 @@
 import pandas
-import numpy
+import numpy as np
+import io
 
-'''
+"""
 Python library to allow easy handling of coordinate files for molecular dynamics using pandas DataFrames.
-'''
+"""
 
 
 if __name__ == "__main__":
@@ -11,50 +12,110 @@ if __name__ == "__main__":
 else:
     from . import utils
 
+_protein_residues = {'ALA': 'A', 'CYS': 'C', 'ASP': 'D', 'GLU': 'E',
+                    'PHE': 'F', 'GLY': 'G', 'HIS': 'H', 'ILE': 'I',
+                    'LYS': 'K', 'LEU': 'L', 'MET': 'M', 'ASN': 'N',
+                    'PRO': 'P', 'GLN': 'Q', 'ARG': 'R', 'SER': 'S',
+                    'THR': 'T', 'VAL': 'V', 'TRP': 'W', 'TYR': 'Y'}
 
 class Scene(pandas.DataFrame):
-
-    # Required
-    protein_residues = {'ALA': 'A', 'CYS': 'C', 'ASP': 'D', 'GLU': 'E',
-                        'PHE': 'F', 'GLY': 'G', 'HIS': 'H', 'ILE': 'I',
-                        'LYS': 'K', 'LEU': 'L', 'MET': 'M', 'ASN': 'N',
-                        'PRO': 'P', 'GLN': 'Q', 'ARG': 'R', 'SER': 'S',
-                        'THR': 'T', 'VAL': 'V', 'TRP': 'W', 'TYR': 'Y'}
     # Initialization
-    def __init__(self, particles, **kwargs):
-        """Create an empty scene"""
+    def __init__(self, particles, altLoc='A', model=1, **kwargs):
+        """Create an empty scene from particles.
+        The Scene object is a wraper of a pandas DataFrame with extra information"""
         pandas.DataFrame.__init__(self, particles)
+        #Add metadata dictionary
         self.__dict__['_meta'] = {}
-        assert 'x' in self.columns
-        assert 'y' in self.columns
-        assert 'z' in self.columns
-        if 'chain_index' not in self.columns:
-            self['chain_index'] = 1
-        if 'res_index' not in self.columns:
-            self['res_index'] = 1
+
+        if 'x' in self.columns:
+            assert 'y' in self.columns, "Missing coordinate y"
+            assert 'z' in self.columns, "Missing coordinate z"
+        elif len(self.columns) == 3:
+            pandas.DataFrame.__init__(self, particles, columns=['x', 'y', 'z'])
+        else:
+            raise TypeError("Incorrect particle format")
+
+        if 'chainID' not in self.columns:
+            self['chainID'] = ['A'] * len(self)
+        if 'resSeq' not in self.columns:
+            self['resSeq'] = [1] * len(self)
+        if 'iCode' not in self.columns:
+            self['iCode'] = [''] * len(self)
+        if 'altLoc' not in self.columns:
+            self['altLoc'] = [''] * len(self)
+        if 'model' not in self.columns:
+            self['model'] = [1] * len(self)
         if 'name' not in self.columns:
             self['name'] = [f'P{i:03}' for i in range(len(self))]
+        if 'element' not in self.columns:
+            self['element'] = ['C'] * len(self)
+        if 'occupancy' not in self.columns:
+            self['occupancy'] = [1.0] * len(self)
+        if 'tempFactor' not in self.columns:
+            self['tempFactor'] = [1.0] * len(self)
+
+        #Map chain index to index
+        if 'chain_index' not in self.columns:
+            chain_map = {b: a for a, b in enumerate(self['chainID'].unique())}
+            self['chain_index'] = self['chainID'].replace(chain_map)
+
+        #Map residue to index
+        if 'res_index' not in self.columns:
+            resmap = []
+            for c, chain in self.groupby('chain_index'):
+                residues = (chain['resSeq'].astype(str) + chain['iCode'].astype(str))
+                unique_residues = residues.unique()
+                dict(zip(unique_residues, range(len(unique_residues))))
+                resmap += [residues.replace(dict(zip(unique_residues, range(len(unique_residues)))))]
+            self['res_index'] = pandas.concat(resmap)
+
+        #Add metadata
         for attr, value in kwargs.items():
             self._meta[attr] = value
 
+    def select(self, **kwargs):
+        #TODO: fix selection
+        index = self.index
+        sel = pandas.Series([True] * len(index), index=index)
+        if 'altLoc' in kwargs:
+            sel &= (self['altLoc'].isin(['', kwargs['altLoc']]))
+        if 'model' in kwargs:
+            sel &= (self['model'] == kwargs['model'])
+
+        #Assert there are not repeated atoms
+        index = self[sel][['chain_index', 'res_index', 'name']]
+        if len(index.duplicated()) == 0:
+            print("Duplicated atoms found")
+            print(index[index.duplicated()])
+            self._meta['duplicated'] = True
+
+        return Scene(self[sel], **self._meta)
+
+    def split_models(self):
+        pass
+#        for m in self['model'].unique():
+#            for a in sel:
+#                pass
+
+
     @classmethod
-    def from_pdb(cls, file):
+    def from_pdb(cls, file, **kwargs):
         def pdb_line(line):
             l = dict(recname=str(line[0:6]).strip(),
                      serial=int(line[6:11]),
                      name=str(line[12:16]).strip(),
-                     altLoc=str(line[16:17]),
+                     altLoc=str(line[16:17]).strip(),
                      resname=str(line[17:20]).strip(),
-                     chainID=str(line[21:22]),
+                     chainID=str(line[21:22]).strip(),
                      resSeq=int(line[22:26]),
-                     iCode=str(line[26:27]),
+                     iCode=str(line[26:27]).strip(),
                      x=float(line[30:38]),
                      y=float(line[38:46]),
                      z=float(line[46:54]),
                      occupancy=line[54:60].strip(),
                      tempFactor=line[60:66].strip(),
-                     element=str(line[76:78]),
-                     charge=str(line[78:80]))
+                     element=str(line[76:78]).strip(),
+                     charge=str(line[78:80]).strip())
             if l['occupancy'] == '':
                 l['occupancy'] = 1.0
             else:
@@ -63,44 +124,64 @@ class Scene(pandas.DataFrame):
                 l['tempFactor'] = 1.0
             else:
                 l['tempFactor'] = float(l['tempFactor'])
+            if l['charge'] == '':
+                l['charge'] = 0.0
+            else:
+                l['charge'] = float(l['charge'])
             return l
 
         with open(file, 'r') as pdb:
             lines = []
-            mod_lines=[]
+            mod_lines = []
+            model_numbers = []
+            model_number = 1
             for i, line in enumerate(pdb):
                 if len(line) > 6:
                     header = line[:6]
                     if header == 'ATOM  ' or header == 'HETATM':
                         lines += [pdb_line(line)]
-                    elif len(line) > 6 and header == "MODRES":
+                        model_numbers += [model_number]
+                    elif header == "MODRES":
                         m = dict(recname=str(line[0:6]).strip(),
-                                 idCode=str(line[7:11]),
+                                 idCode=str(line[7:11]).strip(),
                                  resname=str(line[12:15]).strip(),
-                                 chainID=str(line[16:17]),
+                                 chainID=str(line[16:17]).strip(),
                                  resSeq=int(line[18:22]),
-                                 iCode=str(line[22:23]),
+                                 iCode=str(line[22:23]).strip(),
                                  stdRes=str(line[24:27]).strip(),
-                                 comment=str(line[29:70]))
+                                 comment=str(line[29:70]).strip())
                         mod_lines += [m]
+                    elif header == "MODEL ":
+                        model_number = int(line[10:14])
         pdb_atoms = pandas.DataFrame(lines)
         pdb_atoms = pdb_atoms[['recname', 'serial', 'name', 'altLoc',
                                'resname', 'chainID', 'resSeq', 'iCode',
                                'x', 'y', 'z', 'occupancy', 'tempFactor',
                                'element', 'charge']]
+        pdb_atoms['model'] = model_numbers
 
-        kwargs={}
         if len(mod_lines) > 0:
             kwargs.update(dict(modified_residues=pandas.DataFrame(mod_lines)))
 
-        chain_map = {b: a for a, b in enumerate(pdb_atoms['chainID'].unique())}
-        pdb_atoms['chain_index'] = pdb_atoms['chainID'].replace(chain_map)
-        pdb_atoms['res_index'] = pdb_atoms['resname']
-
-        return cls(pdb_atoms,**kwargs)
+        return cls(pdb_atoms, **kwargs)
 
     @classmethod
-    def from_cif(cls, file):
+    def from_cif(cls, file, **kwargs):
+        _cif_pdb_rename = {'id': 'serial',
+                           'auth_atom_id': 'name',
+                           'label_alt_id': 'altLoc',
+                           'auth_comp_id': 'resName',
+                           'auth_asym_id': 'chainID',
+                           'auth_seq_id': 'resSeq',
+                           'pdbx_PDB_ins_code': 'iCode',
+                           'Cartn_x': 'x',
+                           'Cartn_y': 'y',
+                           'Cartn_z': 'z',
+                           'occupancy': 'occupancy',
+                           'B_iso_or_equiv': 'tempFactor',
+                           'type_symbol': 'element',
+                           'pdbx_formal_charge': 'charge',
+                           'pdbx_PDB_model_num': 'model'}
         data = []
         with open(file) as f:
             reader = utils.PdbxReader(f)
@@ -110,18 +191,73 @@ class Scene(pandas.DataFrame):
         cif_atoms = pandas.DataFrame([atom_data.getFullRow(i) for i in range(atom_data.getRowCount())],
                                      columns=atom_data.getAttributeList(),
                                      index=range(atom_data.getRowCount()))
-        cif_atoms[['x', 'y', 'z']] = cif_atoms[['Cartn_x', 'Cartn_y', 'Cartn_z']]
-        return cls(cif_atoms)
+        #Rename columns to pdb convention
+        cif_atoms = cif_atoms.rename(_cif_pdb_rename, axis=1)
+        for col in cif_atoms.columns:
+            try:
+                cif_atoms[col] = cif_atoms[col].astype(float)
+                if ((cif_atoms[col].astype(int) - cif_atoms[col])**2).sum() == 0:
+                    cif_atoms[col] = cif_atoms[col].astype(int)
+                continue
+            except ValueError:
+                pass
+        return cls(cif_atoms, **kwargs)
+
+
 
     @classmethod
-    def from_gro(cls, gro):
+    def from_gro(cls, gro, **kwargs):
+        """Not implemented"""
         return cls()
 
+    @classmethod
+    def from_fixPDB(cls, filename=None, pdbfile=None, pdbxfile=None, url=None, pdbid=None,
+                    **kwargs):
+        """Uses the pdbfixer library to fix a pdb file, replacing non standard residues, removing
+        hetero-atoms and adding missing hydrogens. The input is a pdb file location,
+        the output is a fixer object, which is a pdb in the openawsem format."""
+        import pdbfixer
+        fixer = pdbfixer.PDBFixer(filename=filename, pdbfile=pdbfile, pdbxfile=pdbxfile, url=url, pdbid=pdbid)
+        fixer.findMissingResidues()
+        chains = list(fixer.topology.chains())
+        keys = fixer.missingResidues.keys()
+        for key in list(keys):
+            chain_tmp = chains[key[0]]
+            if key[1] == 0 or key[1] == len(list(chain_tmp.residues())):
+                del fixer.missingResidues[key]
+
+        fixer.findNonstandardResidues()
+        fixer.replaceNonstandardResidues()
+        fixer.removeHeterogens(keepWater=False)
+        fixer.findMissingAtoms()
+        fixer.addMissingAtoms()
+        fixer.addMissingHydrogens(7.0)
+        pdb = fixer
+        """ Parses a pdb in the openmm format and outputs a table that contains all the information
+        on a pdb file """
+        cols = ['recname', 'serial', 'name', 'altLoc',
+                'resname', 'chainID', 'resSeq', 'iCode',
+                'x', 'y', 'z', 'occupancy', 'tempFactor',
+                'element', 'charge']
+        data = []
+        for atom, pos in zip(pdb.topology.atoms(), pdb.positions):
+            residue = atom.residue
+            chain = residue.chain
+            pos = pos.value_in_unit(pdbfixer.pdbfixer.unit.angstrom)
+            data += [dict(zip(cols, ['ATOM', int(atom.id), atom.name, '',
+                                     residue.name, chain.id, int(residue.id), '',
+                                     pos[0], pos[1], pos[2], 0, 0,
+                                     atom.element.symbol, '']))]
+        atom_list = pandas.DataFrame(data)
+        atom_list = atom_list[cols]
+        atom_list.index = atom_list['serial']
+        return cls(atom_list, **kwargs)
+
     # Writing
-    def write_pdb(self, file):
+    def write_pdb(self, file, inline=False):
         # Fill empty columns
         pdb_table = self.copy()
-        pdb_table['serial'] = numpy.arange(1, len(self) + 1) if 'serial' not in pdb_table else pdb_table['serial']
+        pdb_table['serial'] = np.arange(1, len(self) + 1) if 'serial' not in pdb_table else pdb_table['serial']
         pdb_table['name'] = 'A' if 'name' not in pdb_table else pdb_table['name']
         pdb_table['altLoc'] = '' if 'altLoc' not in pdb_table else pdb_table['altLoc']
         pdb_table['resName'] = 'R' if 'resName' not in pdb_table else pdb_table['resName']
@@ -144,15 +280,21 @@ class Scene(pandas.DataFrame):
             pdb_table['chainID'] = self.atoms['molecule'].replace(cc_d)
 
         # Write pdb file
-        with open(file, 'w+') as pdb:
-            for i, atom in pdb_table.iterrows():
-                line = f'ATOM  {i:>5} {atom["name"]:^4} {atom["resName"]:<3} {atom["chainID"]}{atom["resSeq"]:>4}' + \
-                       '    ' + \
-                       f'{atom.x:>8.3f}{atom.y:>8.3f}{atom.z:>8.3f}' + ' ' * 22 + f'{atom.element:2}' + ' ' * 2
-                assert len(line) == 80, 'An item in the atom table is longer than expected'
-                pdb.write(line + '\n')
+        lines=''
+        for i, atom in pdb_table.iterrows():
+            line = f'ATOM  {i:>5} {atom["name"]:^4} {atom["resName"]:<3} {atom["chainID"]}{atom["resSeq"]:>4}' + \
+                   '    ' + \
+                   f'{atom.x:>8.3f}{atom.y:>8.3f}{atom.z:>8.3f}' + ' ' * 22 + f'{atom.element:2}' + ' ' * 2
+            assert len(line) == 80, f'An item in the atom table is longer than expected\n{line}'
+            lines+=line + '\n'
 
-    def write_cif(self, file):
+        if inline:
+            return io.StringIO(lines)
+        else:
+            with open(file, 'w+') as out:
+                out.write(lines)
+
+    def write_cif(self, file, inline=False):
         """Write a PDBx/mmCIF file.
 
         Parameters
@@ -189,62 +331,95 @@ class Scene(pandas.DataFrame):
         """
         # Fill empty columns
         pdbx_table = self.copy()
-        pdbx_table['serial'] = numpy.arange(1, len(self) + 1) if 'serial' not in pdbx_table else pdbx_table['serial']
-        pdbx_table['name'] = 'A' if 'name' not in pdbx_table else pdbx_table['name']
-        pdbx_table['altLoc'] = '?' if 'altLoc' not in pdbx_table else pdbx_table['altLoc']
-        pdbx_table['resName'] = 'R' if 'resName' not in pdbx_table else pdbx_table['resName']
-        pdbx_table['chainID'] = 'C' if 'chainID' not in pdbx_table else pdbx_table['chainID']
+        pdbx_table['serial'] = np.arange(1, len(self) + 1) if 'serial' not in pdbx_table else pdbx_table['serial']
+        pdbx_table['name'] = 'A' if 'name' not in pdbx_table else pdbx_table['name'].str.strip().replace('', '.')
+        pdbx_table['altLoc'] = '?' if 'altLoc' not in pdbx_table else pdbx_table['altLoc'].str.strip().replace('', '.')
+        pdbx_table['resName'] = 'R' if 'resName' not in pdbx_table else pdbx_table['resName'].str.strip().replace('', '.')
+        pdbx_table['chainID'] = 'C' if 'chainID' not in pdbx_table else pdbx_table['chainID'].str.strip().replace('', '.')
         pdbx_table['resSeq'] = 1 if 'resSeq' not in pdbx_table else pdbx_table['resSeq']
         pdbx_table['resIC'] = 1 if 'resIC' not in pdbx_table else pdbx_table['resIC']
-        pdbx_table['iCode'] = '' if 'iCode' not in pdbx_table else pdbx_table['iCode']
+        pdbx_table['iCode'] = '' if 'iCode' not in pdbx_table else pdbx_table['iCode'].str.strip().replace('', '.')
         assert 'x' in pdbx_table.columns, 'Coordinate x not in particle definition'
         assert 'y' in pdbx_table.columns, 'Coordinate x not in particle definition'
         assert 'z' in pdbx_table.columns, 'Coordinate x not in particle definition'
         pdbx_table['occupancy'] = 0 if 'occupancy' not in pdbx_table else pdbx_table['occupancy']
         pdbx_table['tempFactor'] = 0 if 'tempFactor' not in pdbx_table else pdbx_table['tempFactor']
-        pdbx_table['element'] = 'C' if 'element' not in pdbx_table else pdbx_table['element']
+        pdbx_table['element'] = 'C' if 'element' not in pdbx_table else pdbx_table['element'].str.strip().replace('', '.')
         pdbx_table['charge'] = 0 if 'charge' not in pdbx_table else pdbx_table['charge']
         pdbx_table['model'] = 0 if 'model' not in pdbx_table else pdbx_table['model']
 
-        with open(file, 'w+') as pdbx:
-            pdbx.write('data_pdbx\n')
-            pdbx.write('#\n')
-            pdbx.write('loop_\n')
-            pdbx.write('_atom_site.group_PDB\n')
-            pdbx.write('_atom_site.id\n')
-            pdbx.write('_atom_site.type_symbol\n')
-            pdbx.write('_atom_site.label_atom_id\n')
-            pdbx.write('_atom_site.label_alt_id\n')
-            pdbx.write('_atom_site.label_comp_id\n')
-            pdbx.write('_atom_site.label_asym_id\n')
-            pdbx.write('_atom_site.label_entity_id\n')
-            pdbx.write('_atom_site.label_seq_id\n')
-            pdbx.write('_atom_site.pdbx_PDB_ins_code\n')
-            pdbx.write('_atom_site.Cartn_x\n')
-            pdbx.write('_atom_site.Cartn_y\n')
-            pdbx.write('_atom_site.Cartn_z\n')
-            pdbx.write('_atom_site.occupancy\n')
-            pdbx.write('_atom_site.B_iso_or_equiv\n')
-            pdbx.write('_atom_site.Cartn_x_esd\n')
-            pdbx.write('_atom_site.Cartn_y_esd\n')
-            pdbx.write('_atom_site.Cartn_z_esd\n')
-            pdbx.write('_atom_site.occupancy_esd\n')
-            pdbx.write('_atom_site.B_iso_or_equiv_esd\n')
-            pdbx.write('_atom_site.pdbx_formal_charge\n')
-            pdbx.write('_atom_site.auth_seq_id\n')
-            pdbx.write('_atom_site.auth_comp_id\n')
-            pdbx.write('_atom_site.auth_asym_id\n')
-            pdbx.write('_atom_site.auth_atom_id\n')
-            pdbx.write('_atom_site.pdbx_PDB_model_num\n')
-            for i, atom in pdbx_table.iterrows():
-                line = f"ATOM  {i:>5} {atom['element']:^3} {atom['name']:^4} . {atom['resName']:^4} " + \
-                       f"{atom['chainID']} ? {atom['resSeq']:^5} {atom['resIC']} " + \
-                       f"{atom['x']:10.4f} {atom['y']:10.4f} {atom['z']:10.4f}  0.0  0.0  ?  ?  ?  ?  ?  .  " + \
-                       f"{atom['resSeq']:5} {atom['resName']:4} {atom['chainID']} {atom['name']:^4} {atom['model']:^5}"
-                pdbx.write(line + '\n')
-            pdbx.write('#\n')
+        lines = ""
+        lines += "data_pdbx\n"
+        lines += "#\n"
+        lines += "loop_\n"
+        lines += "_atom_site.group_PDB\n"
+        lines += "_atom_site.id\n"
+        lines += "_atom_site.auth_atom_id\n"
+        lines += "_atom_site.auth_comp_id\n"
+        lines += "_atom_site.auth_asym_id\n"
+        lines += "_atom_site.auth_seq_id\n"
+        lines += "_atom_site.pdbx_PDB_ins_code\n"
+        lines += "_atom_site.Cartn_x\n"
+        lines += "_atom_site.Cartn_y\n"
+        lines += "_atom_site.Cartn_z\n"
+        lines += "_atom_site.occupancy\n"
+        lines += "_atom_site.B_iso_or_equiv\n"
+        lines += "_atom_site.type_symbol\n"
+        lines += "_atom_site.pdbx_formal_chrge\n"
+        lines += "_atom_site.pdbx_PDB_model_num\n"
+        for i, atom in pdbx_table.iterrows():
+            line = f'ATOM  {i} {atom["name"]} {atom["resName"]} {atom["chainID"]} {atom["resSeq"]} {atom["iCode"]} {atom.x} {atom.y} {atom.z} {atom["occupancy"]} {atom["tempFactor"]} {atom.element} {atom["charge"]} {atom["model"]}\n'
+            #assert len(line.split()) == 15, len(line.split())
+            lines += line
+        lines += '#\n'
 
-    def write_gro(self, file):
+        """
+        lines=''
+        lines+= 'data_pdbx\n'
+        lines+= '#\n'
+        lines+= 'loop_\n'
+        lines+= '_atom_site.group_PDB\n'
+        lines+= '_atom_site.id\n'
+        lines+= '_atom_site.type_symbol\n'
+        lines+= '_atom_site.label_atom_id\n'
+        lines+= '_atom_site.label_alt_id\n'
+        lines+= '_atom_site.label_comp_id\n'
+        lines+= '_atom_site.label_asym_id\n'
+        lines+= '_atom_site.label_entity_id\n'
+        lines+= '_atom_site.label_seq_id\n'
+        lines+= '_atom_site.pdbx_PDB_ins_code\n'
+        lines+= '_atom_site.Cartn_x\n'
+        lines+= '_atom_site.Cartn_y\n'
+        lines+= '_atom_site.Cartn_z\n'
+        lines+= '_atom_site.occupancy\n'
+        lines+= '_atom_site.B_iso_or_equiv\n'
+        lines+= '_atom_site.Cartn_x_esd\n'
+        lines+= '_atom_site.Cartn_y_esd\n'
+        lines+= '_atom_site.Cartn_z_esd\n'
+        lines+= '_atom_site.occupancy_esd\n'
+        lines+= '_atom_site.B_iso_or_equiv_esd\n'
+        lines+= '_atom_site.pdbx_formal_charge\n'
+        lines+= '_atom_site.auth_seq_id\n'
+        lines+= '_atom_site.auth_comp_id\n'
+        lines+= '_atom_site.auth_asym_id\n'
+        lines+= '_atom_site.auth_atom_id\n'
+        lines+= '_atom_site.pdbx_PDB_model_num\n'
+        for i, atom in pdbx_table.iterrows():
+            line = f"ATOM  {i:>5} {atom['element']:^3} {atom['name']:^4} . {atom['resName']:^4} " + \
+                   f"{atom['chainID']} ? {atom['resSeq']:^5} {atom['resIC']} " + \
+                   f"{atom['x']:10.4f} {atom['y']:10.4f} {atom['z']:10.4f}  0.0  0.0  ?  ?  ?  ?  ?  .  " + \
+                   f"{atom['resSeq']:5} {atom['resName']:4} {atom['chainID']} {atom['name']:^4} {atom['model']:^5}"
+            lines+=(line + '\n')
+        lines+= '#\n'
+        """
+
+        if inline:
+            return io.StringIO(lines)
+        else:
+            with open(file, 'w+') as out:
+                out.write(lines)
+
+    def write_gro(self, file, box_size):
         gro_line = "%5d%-5s%5s%5d%8s%8s%8s%8s%8s%8s\n"
         pdb_atoms = self.atoms.copy()
         pdb_atoms['resName'] = self.atoms[
@@ -293,11 +468,12 @@ class Scene(pandas.DataFrame):
 
     def correct_modified_aminoacids(self):
         out = self.copy()
-        for i, row in out.modified_residues.iterrows():
-            sel = ((out['resname'] == row['resname']) &
-                   (out['chainID'] == row['chainID']) &
-                   (out['resSeq'] == row['resSeq']))
-            out.loc[sel, 'resname'] = row['stdRes']
+        if 'modified_residues' in self._meta:
+            for i, row in out.modified_residues.iterrows():
+                sel = ((out['resname'] == row['resname']) &
+                       (out['chainID'] == row['chainID']) &
+                       (out['resSeq'] == row['resSeq']))
+                out.loc[sel, 'resname'] = row['stdRes']
         return out
 
     # Built ins
@@ -333,8 +509,7 @@ class Scene(pandas.DataFrame):
         return temp
 
     def __getattr__(self, attr):
-
-        if attr in self._meta:
+        if '_meta' in self.__dict__ and attr in self._meta:
             return self._meta[attr]
         else:
             raise AttributeError(f"type object {str(self.__class__)} has no attribute {str(attr)}")
@@ -367,20 +542,31 @@ if __name__ == '__main__':
                                   [0, 1, 0],
                                   [0, 0, 1]],
                                  columns=['x', 'y', 'z'])
+    s = Scene(particles)
+    s.write_pdb('test.pdb')
+
+    s = Scene.from_pdb('test.pdb')
+
+    s.write_cif('test.cif')
+
+    s = Scene.from_cif('test.cif')
+
+    s = Scene.from_fixPDB(pdbid='1JGE')
+
     s1 = Scene(particles)
     s1.write_pdb('test.pdb')
     s2 = Scene.from_pdb('test.pdb')
-
     s2.write_cif('test.cif')
     s3 = Scene.from_cif('test.cif')
     s3.write_pdb('test2.pdb')
-    s4 = Scene.from_pdb('test.pdb')
-
+    s4 = Scene.from_pdb('test2.pdb')
 
     s1.to_csv('particles_1.csv')
     s2.to_csv('particles_2.csv')
     s3.to_csv('particles_3.csv')
     s4.to_csv('particles_4.csv')
+
+
 
 """
 import numpy as np
