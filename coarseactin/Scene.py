@@ -373,32 +373,14 @@ class Scene(pandas.DataFrame):
         lines += "_atom_site.pdbx_formal_chrge\n"
         lines += "_atom_site.pdbx_PDB_model_num\n"
 
-        import time
-        t_ = time.time()
-        #print(time.time()-t_)
-        #print("Before apply")
-        #line_col = pdbx_table.apply(lambda atom: f'ATOM  {atom["serial"]} {atom["name"]} {atom["resName"]} {atom["chainID"]} {atom["resSeq"]} {atom["iCode"]} {atom.x} {atom.y} {atom.z} {atom["occupancy"]} {atom["tempFactor"]} {atom.element} {atom["charge"]} {atom["model"]}\n', axis=1)
-        #lines += ''.join(line_col)
-        #print(time.time() - t_)
-        #print("After apply")
-
-        #t_ = time.time()
-        #for i, atom in pdbx_table.iterrows():
-        #    line = f'ATOM  {i} {atom["name"]} {atom["resName"]} {atom["chainID"]} {atom["resSeq"]} {atom["iCode"]} {atom.x} {atom.y} {atom.z} {atom["occupancy"]} {atom["tempFactor"]} {atom.element} {atom["charge"]} {atom["model"]}\n'
-        #    lines += line
-        #lines += '#\n'
-        #print(time.time() - t_)
-
         pdbx_table['line'] = 'ATOM'
         for col in ['serial', 'name', 'resName', 'chainID', 'resSeq', 'iCode', 'x', 'y', 'z',
                     'occupancy', 'tempFactor', 'element', 'charge', 'model']:
             pdbx_table['line'] += " "
             pdbx_table['line'] += pdbx_table[col].astype(str)
-            print(time.time() - t_)
         pdbx_table['line'] += '\n'
         lines += ''.join(pdbx_table['line'])
         lines += '#\n'
-        print(time.time() - t_)
 
         if inline:
             return io.StringIO(lines)
