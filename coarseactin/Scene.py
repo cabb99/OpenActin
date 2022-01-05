@@ -259,8 +259,11 @@ class Scene(pandas.DataFrame):
         return cls(atom_list, **kwargs)
 
     # Writing
-    def write_pdb(self, file, inline=False):
+    def write_pdb(self, file=None, verbose=False):
         # Fill empty columns
+        if verbose:
+            print(f"Writing pdb file ({len(self)} atoms): {file}")
+
         pdb_table = self.copy()
         pdb_table['serial'] = np.arange(1, len(self) + 1) if 'serial' not in pdb_table else pdb_table['serial']
         pdb_table['name'] = 'A' if 'name' not in pdb_table else pdb_table['name']
@@ -293,13 +296,13 @@ class Scene(pandas.DataFrame):
             assert len(line) == 80, f'An item in the atom table is longer than expected\n{line}'
             lines+=line + '\n'
 
-        if inline:
+        if file is None:
             return io.StringIO(lines)
         else:
             with open(file, 'w+') as out:
                 out.write(lines)
 
-    def write_cif(self, file, inline=False):
+    def write_cif(self, file=None, verbose=False):
         """Write a PDBx/mmCIF file.
 
         Parameters
@@ -334,6 +337,9 @@ class Scene(pandas.DataFrame):
             make sure these are valid IDs that satisfy the requirements of the
             PDBx/mmCIF format.  Otherwise, the output file will be invalid.
         """
+        if verbose:
+            print(f"Writing cif file ({len(self)} atoms): {file}")
+
         # Fill empty columns
         pdbx_table = self.copy()
         pdbx_table['serial'] = np.arange(1, len(self) + 1) if 'serial' not in pdbx_table else pdbx_table['serial']
@@ -382,13 +388,16 @@ class Scene(pandas.DataFrame):
         lines += ''.join(pdbx_table['line'])
         lines += '#\n'
 
-        if inline:
+        if file is None:
             return io.StringIO(lines)
         else:
             with open(file, 'w+') as out:
                 out.write(lines)
 
-    def write_gro(self, file, box_size=None):
+    def write_gro(self, file, box_size=None, verbose=False):
+        if verbose:
+            print(f"Writing pdb file ({len(self)} atoms): {file}")
+
         gro_line = "%5d%-5s%5s%5d%8s%8s%8s%8s%8s%8s\n"
         pdb_atoms = self.copy()
         pdb_atoms['resName'] = pdb_atoms[

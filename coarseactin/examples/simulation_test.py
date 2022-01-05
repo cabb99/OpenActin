@@ -151,8 +151,7 @@ if __name__ == '__main__':
     model = coarseactin.Scene(pandas.concat(full_model))
     model['chainID'] = chainID
     full_model=model
-    print('Writing cif')
-    full_model.write_cif('full_model_initial.cif')
+    full_model.write_cif('full_model_step1.cif')
 
     # Remove the CaMKII that are not overlapping
     print('Removing Single CaMKII')
@@ -173,7 +172,7 @@ if __name__ == '__main__':
                                 sel2[['chainID', 'resid', ]].apply(lambda x: ''.join([str(a) for a in x]), axis=1))]
     print(len(full_model))
     full_model = coarseactin.Scene(full_model.sort_values(['chainID', 'resid', 'name']))
-    full_model.write_cif('full_model_initial.cif')
+    full_model.write_cif('full_model_step2.cif', verbose=True)
 
     #Remove the CaMKII that are colliding
     print('Removing Collisions')
@@ -200,7 +199,5 @@ if __name__ == '__main__':
 
     full_model = coarseactin.Scene(full_model.sort_values(['chainID', 'resid', 'name']))
 
-    print('Writing cif')
-    full_model.write_cif('full_model.cif')
-    print('Writing gro')
-    full_model.write_gro('full_model.gro')
+    full_model.write_cif('full_model.cif', verbose=True)
+    full_model.write_gro('full_model.gro', verbose=True)

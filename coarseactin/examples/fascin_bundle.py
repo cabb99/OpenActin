@@ -199,7 +199,6 @@ if __name__ == '__main__':
 
     full_model=full_model = coarseactin.Scene(full_model.sort_values(['chainID', 'resid', 'name']))
 
-    print('Writing cif')
-    full_model.write_cif('full_model.cif')
+    full_model.write_cif('full_model.cif', verbose=True)
     print('Writing gro')
     full_model.write_gro('full_model.gro')
