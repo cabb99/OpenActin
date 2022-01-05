@@ -15,7 +15,8 @@ def test_create_actin_system():
     pass
 
 def test_simulate_actin_system():
-c
+    pass
+
 def test_actin_diffussion():
     """Checks that the translational and rotational diffussion are as expected"""
 
@@ -44,7 +45,7 @@ def test_actin_persistence_length():
     """Check that the persistence length is as expected"""
     "17uM+-2"
 
-def test_actin_bonds:
+def test_actin_bonds():
     pass
 
 """Check that the actin binding sites don't move too much from their expected position during the simulation"""

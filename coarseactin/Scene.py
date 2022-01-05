@@ -28,8 +28,8 @@ class Scene(pandas.DataFrame):
         self.__dict__['_meta'] = {}
 
         if 'x' in self.columns:
-            assert 'y' in self.columns, "Missing coordinate y"
-            assert 'z' in self.columns, "Missing coordinate z"
+            if 'y' not in self.columns or 'z' not in self.columns:
+               raise TypeError('E')
         elif len(self.columns) == 3:
             pandas.DataFrame.__init__(self, particles, columns=['x', 'y', 'z'])
         else:
@@ -74,13 +74,16 @@ class Scene(pandas.DataFrame):
             self._meta[attr] = value
 
     def select(self, **kwargs):
-        #TODO: fix selection
         index = self.index
         sel = pandas.Series([True] * len(index), index=index)
-        if 'altLoc' in kwargs:
-            sel &= (self['altLoc'].isin(['', kwargs['altLoc']]))
-        if 'model' in kwargs:
-            sel &= (self['model'] == kwargs['model'])
+        for key in kwargs:
+            print(key)
+            if key == 'altLoc':
+                sel &= (self['altLoc'].isin(['', '.'] + kwargs['altLoc']))
+            elif key == 'model':
+                sel &= (self['model'].isin(kwargs['model']))
+            else:
+                sel &= (self[key].isin(kwargs[key]))
 
         #Assert there are not repeated atoms
         index = self[sel][['chain_index', 'res_index', 'name']]
@@ -92,6 +95,8 @@ class Scene(pandas.DataFrame):
         return Scene(self[sel], **self._meta)
 
     def split_models(self):
+        # TODO: Implement splitting based on model and altLoc.
+        # altLoc can be present in multiple regions (1zir)
         pass
 #        for m in self['model'].unique():
 #            for a in sel:
@@ -105,7 +110,7 @@ class Scene(pandas.DataFrame):
                      serial=int(line[6:11]),
                      name=str(line[12:16]).strip(),
                      altLoc=str(line[16:17]).strip(),
-                     resname=str(line[17:20]).strip(),
+                     resName=str(line[17:20]).strip(),
                      chainID=str(line[21:22]).strip(),
                      resSeq=int(line[22:26]),
                      iCode=str(line[26:27]).strip(),
@@ -144,7 +149,7 @@ class Scene(pandas.DataFrame):
                     elif header == "MODRES":
                         m = dict(recname=str(line[0:6]).strip(),
                                  idCode=str(line[7:11]).strip(),
-                                 resname=str(line[12:15]).strip(),
+                                 resName=str(line[12:15]).strip(),
                                  chainID=str(line[16:17]).strip(),
                                  resSeq=int(line[18:22]),
                                  iCode=str(line[22:23]).strip(),
@@ -155,7 +160,7 @@ class Scene(pandas.DataFrame):
                         model_number = int(line[10:14])
         pdb_atoms = pandas.DataFrame(lines)
         pdb_atoms = pdb_atoms[['recname', 'serial', 'name', 'altLoc',
-                               'resname', 'chainID', 'resSeq', 'iCode',
+                               'resName', 'chainID', 'resSeq', 'iCode',
                                'x', 'y', 'z', 'occupancy', 'tempFactor',
                                'element', 'charge']]
         pdb_atoms['model'] = model_numbers
@@ -236,7 +241,7 @@ class Scene(pandas.DataFrame):
         """ Parses a pdb in the openmm format and outputs a table that contains all the information
         on a pdb file """
         cols = ['recname', 'serial', 'name', 'altLoc',
-                'resname', 'chainID', 'resSeq', 'iCode',
+                'resName', 'chainID', 'resSeq', 'iCode',
                 'x', 'y', 'z', 'occupancy', 'tempFactor',
                 'element', 'charge']
         data = []
@@ -354,10 +359,10 @@ class Scene(pandas.DataFrame):
         lines += "loop_\n"
         lines += "_atom_site.group_PDB\n"
         lines += "_atom_site.id\n"
-        lines += "_atom_site.auth_atom_id\n"
-        lines += "_atom_site.auth_comp_id\n"
-        lines += "_atom_site.auth_asym_id\n"
-        lines += "_atom_site.auth_seq_id\n"
+        lines += "_atom_site.label_atom_id\n"
+        lines += "_atom_site.label_comp_id\n"
+        lines += "_atom_site.label_asym_id\n"
+        lines += "_atom_site.label_seq_id\n"
         lines += "_atom_site.pdbx_PDB_ins_code\n"
         lines += "_atom_site.Cartn_x\n"
         lines += "_atom_site.Cartn_y\n"
@@ -367,51 +372,33 @@ class Scene(pandas.DataFrame):
         lines += "_atom_site.type_symbol\n"
         lines += "_atom_site.pdbx_formal_chrge\n"
         lines += "_atom_site.pdbx_PDB_model_num\n"
-        for i, atom in pdbx_table.iterrows():
-            line = f'ATOM  {i} {atom["name"]} {atom["resName"]} {atom["chainID"]} {atom["resSeq"]} {atom["iCode"]} {atom.x} {atom.y} {atom.z} {atom["occupancy"]} {atom["tempFactor"]} {atom.element} {atom["charge"]} {atom["model"]}\n'
-            #assert len(line.split()) == 15, len(line.split())
-            lines += line
-        lines += '#\n'
 
-        """
-        lines=''
-        lines+= 'data_pdbx\n'
-        lines+= '#\n'
-        lines+= 'loop_\n'
-        lines+= '_atom_site.group_PDB\n'
-        lines+= '_atom_site.id\n'
-        lines+= '_atom_site.type_symbol\n'
-        lines+= '_atom_site.label_atom_id\n'
-        lines+= '_atom_site.label_alt_id\n'
-        lines+= '_atom_site.label_comp_id\n'
-        lines+= '_atom_site.label_asym_id\n'
-        lines+= '_atom_site.label_entity_id\n'
-        lines+= '_atom_site.label_seq_id\n'
-        lines+= '_atom_site.pdbx_PDB_ins_code\n'
-        lines+= '_atom_site.Cartn_x\n'
-        lines+= '_atom_site.Cartn_y\n'
-        lines+= '_atom_site.Cartn_z\n'
-        lines+= '_atom_site.occupancy\n'
-        lines+= '_atom_site.B_iso_or_equiv\n'
-        lines+= '_atom_site.Cartn_x_esd\n'
-        lines+= '_atom_site.Cartn_y_esd\n'
-        lines+= '_atom_site.Cartn_z_esd\n'
-        lines+= '_atom_site.occupancy_esd\n'
-        lines+= '_atom_site.B_iso_or_equiv_esd\n'
-        lines+= '_atom_site.pdbx_formal_charge\n'
-        lines+= '_atom_site.auth_seq_id\n'
-        lines+= '_atom_site.auth_comp_id\n'
-        lines+= '_atom_site.auth_asym_id\n'
-        lines+= '_atom_site.auth_atom_id\n'
-        lines+= '_atom_site.pdbx_PDB_model_num\n'
-        for i, atom in pdbx_table.iterrows():
-            line = f"ATOM  {i:>5} {atom['element']:^3} {atom['name']:^4} . {atom['resName']:^4} " + \
-                   f"{atom['chainID']} ? {atom['resSeq']:^5} {atom['resIC']} " + \
-                   f"{atom['x']:10.4f} {atom['y']:10.4f} {atom['z']:10.4f}  0.0  0.0  ?  ?  ?  ?  ?  .  " + \
-                   f"{atom['resSeq']:5} {atom['resName']:4} {atom['chainID']} {atom['name']:^4} {atom['model']:^5}"
-            lines+=(line + '\n')
-        lines+= '#\n'
-        """
+        import time
+        t_ = time.time()
+        #print(time.time()-t_)
+        #print("Before apply")
+        #line_col = pdbx_table.apply(lambda atom: f'ATOM  {atom["serial"]} {atom["name"]} {atom["resName"]} {atom["chainID"]} {atom["resSeq"]} {atom["iCode"]} {atom.x} {atom.y} {atom.z} {atom["occupancy"]} {atom["tempFactor"]} {atom.element} {atom["charge"]} {atom["model"]}\n', axis=1)
+        #lines += ''.join(line_col)
+        #print(time.time() - t_)
+        #print("After apply")
+
+        #t_ = time.time()
+        #for i, atom in pdbx_table.iterrows():
+        #    line = f'ATOM  {i} {atom["name"]} {atom["resName"]} {atom["chainID"]} {atom["resSeq"]} {atom["iCode"]} {atom.x} {atom.y} {atom.z} {atom["occupancy"]} {atom["tempFactor"]} {atom.element} {atom["charge"]} {atom["model"]}\n'
+        #    lines += line
+        #lines += '#\n'
+        #print(time.time() - t_)
+
+        pdbx_table['line'] = 'ATOM'
+        for col in ['serial', 'name', 'resName', 'chainID', 'resSeq', 'iCode', 'x', 'y', 'z',
+                    'occupancy', 'tempFactor', 'element', 'charge', 'model']:
+            pdbx_table['line'] += " "
+            pdbx_table['line'] += pdbx_table[col].astype(str)
+            print(time.time() - t_)
+        pdbx_table['line'] += '\n'
+        lines += ''.join(pdbx_table['line'])
+        lines += '#\n'
+        print(time.time() - t_)
 
         if inline:
             return io.StringIO(lines)
@@ -419,14 +406,17 @@ class Scene(pandas.DataFrame):
             with open(file, 'w+') as out:
                 out.write(lines)
 
-    def write_gro(self, file, box_size):
+    def write_gro(self, file, box_size=None):
         gro_line = "%5d%-5s%5s%5d%8s%8s%8s%8s%8s%8s\n"
-        pdb_atoms = self.atoms.copy()
-        pdb_atoms['resName'] = self.atoms[
+        pdb_atoms = self.copy()
+        pdb_atoms['resName'] = pdb_atoms[
             'resname']  # self.atoms['molecule_name'].replace({'actin':'ACT','camkii':'CAM'})
         # pdb_atoms['name']       = self.atoms['type'].replace({1:'Aa',2:'Ab',3:'Ca',4:'Cb',5:'Da',6:'Db'})
-        pdb_atoms['serial'] = np.arange(1, len(self.atoms) + 1)
-        pdb_atoms['chainID'] = self.atoms['molecule']
+        pdb_atoms['serial'] = np.arange(1, len(self) + 1)
+        pdb_atoms['chainID'] = pdb_atoms['molecule']
+        if box_size is None:
+            box_size = pdb_atoms[['x','y','z']].max().max()
+
         self.xmin, self.xmax = 0, box_size
         self.ymin, self.ymax = 0, box_size
         self.zmin, self.zmax = 0, box_size
@@ -470,12 +460,32 @@ class Scene(pandas.DataFrame):
         out = self.copy()
         if 'modified_residues' in self._meta:
             for i, row in out.modified_residues.iterrows():
-                sel = ((out['resname'] == row['resname']) &
+                sel = ((out['resName'] == row['resName']) &
                        (out['chainID'] == row['chainID']) &
                        (out['resSeq'] == row['resSeq']))
-                out.loc[sel, 'resname'] = row['stdRes']
+                out.loc[sel, 'resName'] = row['stdRes']
         return out
 
+    def rotate(self, rotation_matrix):
+        return self.dot(rotation_matrix)
+
+    def translate(self, other):
+        new = self.copy()
+        new.at[:, ['x', 'y', 'z']] = self.get_coordinates() + other
+        return new
+
+    def dot(self,other):
+        new = self.copy()
+        new.at[:, ['x', 'y', 'z']] = self.get_coordinates().dot(other)
+        return new
+
+    #Container operations
+    #No container operations, a subset may require some coordinates and not the chain index
+    #def __getitem__(self, key):
+        #try:
+        #    return Scene(super().__getitem__(key))
+        #except TypeError:
+        #    return super().__getitem__(key)
     # Built ins
     def __repr__(self):
         return f'<Scene ({len(self)} particles)>\n{super().__repr__()}'
@@ -604,4 +614,6 @@ print(data)
 # 7  30  80   3  59  16
 # 8  13  52  98  79  65
 # 9   6  93  55  40   3
+
+$DATE$ $TIME$
 """

@@ -7,7 +7,9 @@ Coarse Grained Model of Actin
 #from .system import *
 #from .actin import *
 from .Scene import *
-
+from .components import *
+from .utils.SlurmJobArray import SlurmJobArray
+from .utils.HexGrid import HexGrid
 # Handle versioneer
 from ._version import get_versions
 versions = get_versions()
