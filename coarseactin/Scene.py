@@ -5,10 +5,6 @@ import io
 """
 Python library to allow easy handling of coordinate files for molecular dynamics using pandas DataFrames.
 """
-import warnings
-warnings.filterwarnings('error')
-warnings.filterwarnings('ignore',category=DeprecationWarning)
-
 if __name__ == "__main__":
     import utils
 else:
@@ -237,8 +233,9 @@ class Scene(pandas.DataFrame):
         fixer.replaceNonstandardResidues()
         fixer.removeHeterogens(keepWater=False)
         fixer.findMissingAtoms()
-        fixer.addMissingAtoms()
+        fixer.addMissingAtoms()  # Warning: importing 'simtk.openmm' is deprecated.  Import 'openmm' instead.
         fixer.addMissingHydrogens(7.0)
+
         pdb = fixer
         """ Parses a pdb in the openmm format and outputs a table that contains all the information
         on a pdb file """
@@ -247,6 +244,7 @@ class Scene(pandas.DataFrame):
                 'x', 'y', 'z', 'occupancy', 'tempFactor',
                 'element', 'charge']
         data = []
+
         for atom, pos in zip(pdb.topology.atoms(), pdb.positions):
             residue = atom.residue
             chain = residue.chain
@@ -543,6 +541,7 @@ class Scene(pandas.DataFrame):
     """
 
 if __name__ == '__main__':
+
     particles = pandas.DataFrame([[0, 0, 0],
                                   [0, 1, 0],
                                   [0, 0, 1]],
