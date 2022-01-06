@@ -19,6 +19,8 @@ def create_actin(length=100,
     rot = q[:3, :3].T
     trans = q[:3, 3]
 
+    bound_actin_template = pandas.read_csv("coarseactin/data/CaMKII_bound_with_actin.csv", index_col=0)
+
     # Create the points
     point = bound_actin_template[['x', 'y', 'z']]
     points = []
@@ -29,20 +31,20 @@ def create_actin(length=100,
 
     # Create the model
     model = pandas.DataFrame(points, columns=['x', 'y', 'z'])
-    model["resid"] = [j + i for i in range(length) for j in bound_actin_template["resid"]]
+    model["resSeq"] = [j + i for i in range(length) for j in bound_actin_template["resSeq"]]
     model["name"] = [j for i in range(length) for j in bound_actin_template["name"]]
     model["type"] = [j for i in range(length) for j in bound_actin_template["type"]]
     model["resname"] = [j for i in range(length) for j in bound_actin_template["resname"]]
 
     # Remove two binding points
-    model = model[~((model['resid'] > length - 1) & (model['name'].isin(
+    model = model[~((model['resSeq'] > length - 1) & (model['name'].isin(
         ['A5', 'A6', 'A7'] + ['Cc'] + [f'C{i + 1:02}' for i in range(12)] + [f'Cx{i + 1}' for i in range(3)])))]
 
     # Remove all CaMKII except resid 50
     # model=model[~((model['resid']!=50) & (model['resname'].isin(['CAM'])))]
 
-    model.loc[model[model['resid'] == model['resid'].max()].index, 'resname'] = 'ACD'
-    model.loc[model[model['resid'] == model['resid'].min()].index, 'resname'] = 'ACD'
+    model.loc[model[model['resSeq'] == model['resSeq'].max()].index, 'resname'] = 'ACD'
+    model.loc[model[model['resSeq'] == model['resSeq'].min()].index, 'resname'] = 'ACD'
     #for chain_name in string.ascii_uppercase + string.ascii_lowercase:
         # print(chain_name)
     #    if chain_name in full_model['chainID'].values:
@@ -119,13 +121,9 @@ if __name__ == '__main__':
     # Build the model #
     ###################
     # Set the points in the actin network
-    import string
     import random
 
-    bound_actin_template = pandas.read_csv("coarseactin/data/CaMKII_bound_with_actin.csv", index_col=0)
-
     full_model=[]
-    #full_model = pandas.DataFrame(columns=['chainID'])
 
     if sjob["layers"] == 1:
         hg = coarseactin.HexGrid(2)
@@ -143,16 +141,16 @@ if __name__ == '__main__':
                                      translation=np.array([5000 + d * c[0], 5000 + d * c[1], 5000 + height]))]
 
 
-    print('Converting')
+    print('Concatenate chains')
     name_generator = coarseactin.chain_name_generator()
-    chain_names = [c for _ in range(len(full_model))]
+    chain_names = [next(name_generator) for _ in range(len(full_model))]
     name_generator.close()
-
     chainID = [c for a, b in zip(chain_names, full_model) for c in [a]*len(b)]
-    model = coarseactin.Scene(pandas.concat(full_model))
+    model = pandas.concat(full_model)
     model['chainID'] = chainID
-    full_model=model
-    full_model.write_cif('full_model_step1.cif')
+    model.index = range(len(model))
+    full_model = coarseactin.Scene(model)
+    full_model.write_cif('full_model_step1.cif', verbose=True)
 
     # Remove the CaMKII that are not overlapping
     print('Removing Single CaMKII')
@@ -160,22 +158,22 @@ if __name__ == '__main__':
     i = sel.index
     d = sdist.pdist(sel[['x', 'y', 'z']])
     d = pandas.Series(d, itertools.combinations(i, 2))
-    sel2 = sel.loc[[a for a, b in d[d < 350].index]]
+    sel2 = sel.loc[[a for a, b in d[d < 35].index]]
     print(len(sel2))
-    full_model.loc[:, 'chain_resid'] = full_model[['chainID', 'resid', ]].apply(lambda x: ''.join([str(a) for a in x]),
+    full_model.loc[:, 'chain_resid'] = full_model[['chainID', 'resSeq', ]].apply(lambda x: ''.join([str(a) for a in x]),
                                                                                 axis=1)
     print(len(full_model[full_model['resname'].isin(['ACT', 'ACD'])]))
     print(len(full_model[full_model['chain_resid'].isin(
-        sel2[['chainID', 'resid', ]].apply(lambda x: ''.join([str(a) for a in x]), axis=1))]))
+        sel2[['chainID', 'resSeq', ]].apply(lambda x: ''.join([str(a) for a in x]), axis=1))]))
 
     full_model = full_model[full_model['resname'].isin(['ACT', 'ACD']) |
                             full_model['chain_resid'].isin(
-                                sel2[['chainID', 'resid', ]].apply(lambda x: ''.join([str(a) for a in x]), axis=1))]
+                                sel2[['chainID', 'resSeq', ]].apply(lambda x: ''.join([str(a) for a in x]), axis=1))]
     print(len(full_model))
-    full_model = coarseactin.Scene(full_model.sort_values(['chainID', 'resid', 'name']))
+
+    full_model = coarseactin.Scene(full_model.sort_values(['chainID', 'resSeq', 'name']))
     full_model.write_cif('full_model_step2.cif', verbose=True)
 
-    1/0
     #Remove the CaMKII that are colliding
     print('Removing Collisions')
     sel=full_model[full_model['name']=='Cc']
@@ -184,11 +182,11 @@ if __name__ == '__main__':
     d=pandas.Series(d,itertools.combinations(i,2))
     sel2=sel.loc[[b for a,b in d[d<350].index]]
     #print(len(sel2))
-    full_model.loc[:,'chain_resid']=full_model[['chainID','resid',]].apply(lambda x:''.join([str(a) for a in x]),axis=1)
+    full_model.loc[:,'chain_resid']=full_model[['chainID','resSeq',]].apply(lambda x:''.join([str(a) for a in x]),axis=1)
     #print(len(full_model[full_model['resname'].isin(['ACT','ACD'])]))
     #print(len(full_model[full_model['chain_resid'].isin(sel2[['chainID','resid',]].apply(lambda x:''.join([str(a) for a in x]),axis=1))]))
 
-    full_model=full_model[~full_model['chain_resid'].isin(sel2[['chainID','resid',]].apply(lambda x:''.join([str(a) for a in x]),axis=1))]
+    full_model=full_model[~full_model['chain_resid'].isin(sel2[['chainID','resSeq',]].apply(lambda x:''.join([str(a) for a in x]),axis=1))]
 
     full_model['mass'] = 1
     full_model['molecule'] = 1
@@ -199,7 +197,7 @@ if __name__ == '__main__':
     #ss.write_gro(f'{Sname}.gro')
     #ss.print_coeff()
 
-    full_model = coarseactin.Scene(full_model.sort_values(['chainID', 'resid', 'name']))
+    full_model = coarseactin.Scene(full_model.sort_values(['chainID', 'resSeq', 'name']))
 
     full_model.write_cif('full_model.cif', verbose=True)
     full_model.write_gro('full_model.gro', verbose=True)
