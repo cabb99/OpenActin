@@ -35,11 +35,11 @@ __version__ = "2.0"
 
 import sys
 import math
-from simtk.openmm import Vec3, Platform
+from openmm import Vec3, Platform
 from datetime import date
-from simtk.openmm.app.internal.pdbx.reader.PdbxReader import PdbxReader
-from simtk.openmm.app.internal.unitcell import computePeriodicBoxVectors, computeLengthsAndAngles
-from simtk.openmm.app import Topology, PDBFile
+from openmm.app.internal.pdbx.reader.PdbxReader import PdbxReader
+from openmm.app.internal.unitcell import computePeriodicBoxVectors, computeLengthsAndAngles
+from openmm.app import Topology, PDBFile
 from simtk.unit import nanometers, angstroms, is_quantity, norm, Quantity, dot
 from . import element as elem
 try:

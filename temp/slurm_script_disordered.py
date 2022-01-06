@@ -135,8 +135,8 @@ class SlurmJobArray():
 Coarse Actin simulations using a custom
 """
 
-import simtk.openmm
-import simtk.openmm.app
+import openmm
+import openmm.app
 from simtk import unit
 import numpy as np
 import pandas
@@ -636,8 +636,8 @@ class CoarseActin:
     def from_topology(cls, topology_file='actin.pdb', periodic_box=10000, PlaneConstraint=False):
         self = cls()
         self.periodic_box = [periodic_box * 0.1] * 3
-        self.forcefield = simtk.openmm.app.ForceField(f'{__location__}/ff.xml')
-        self.top = simtk.openmm.app.PDBFile(topology_file)
+        self.forcefield = openmm.app.ForceField(f'{__location__}/ff.xml')
+        self.top = openmm.app.PDBFile(topology_file)
         self.system = self.forcefield.createSystem(self.top.topology)
         self.system.setDefaultPeriodicBoxVectors(*np.diag(self.periodic_box))
         self.atom_list = self.parseTop()
@@ -671,7 +671,7 @@ class CoarseActin:
 
     def __init__(self):
         self.parseConfigurationFile()
-        # self.forcefield = simtk.openmm.app.ForceField(f'{__location__}/ff.xml')
+        # self.forcefield = openmm.app.ForceField(f'{__location__}/ff.xml')
         # self.top = top
         # self.system = self.forcefield.createSystem(top.topology)
         # self.system.setDefaultPeriodicBoxVectors(*np.diag(periodic_box))
@@ -721,9 +721,9 @@ class CoarseActin:
             ix = dict(list(zip(res['atom_name'], res['atom_index'])))
             if resname == 'ACT':
                 # Virtual site positions
-                a5 = simtk.openmm.OutOfPlaneSite(ix['A2'], ix['A1'], ix['A3'], w1[0], w1[1], w1[2])
-                a6 = simtk.openmm.OutOfPlaneSite(ix['A2'], ix['A1'], ix['A3'], w2[0], w2[1], w2[2])
-                a7 = simtk.openmm.OutOfPlaneSite(ix['A2'], ix['A1'], ix['A3'], w3[0], w3[1], w3[2])
+                a5 = openmm.OutOfPlaneSite(ix['A2'], ix['A1'], ix['A3'], w1[0], w1[1], w1[2])
+                a6 = openmm.OutOfPlaneSite(ix['A2'], ix['A1'], ix['A3'], w2[0], w2[1], w2[2])
+                a7 = openmm.OutOfPlaneSite(ix['A2'], ix['A1'], ix['A3'], w3[0], w3[1], w3[2])
                 # Set up virtual sites
                 self.system.setVirtualSite(ix['A5'], a5)
                 self.system.setVirtualSite(ix['A6'], a6)
@@ -734,19 +734,19 @@ class CoarseActin:
                 c2 = ix['Cx2']
                 c3 = ix['Cx3']
                 # Virtual site positions
-                c01 = simtk.openmm.OutOfPlaneSite(c1, c2, c3, cw1[0], cw1[1], cw1[2])
-                c02 = simtk.openmm.OutOfPlaneSite(c1, c2, c3, cw2[0], cw2[1], cw2[2])
-                c03 = simtk.openmm.OutOfPlaneSite(c2, c3, c1, cw1[0], cw1[1], cw1[2])
-                c04 = simtk.openmm.OutOfPlaneSite(c2, c3, c1, cw2[0], cw2[1], cw2[2])
-                c05 = simtk.openmm.OutOfPlaneSite(c3, c1, c2, cw1[0], cw1[1], cw1[2])
-                c06 = simtk.openmm.OutOfPlaneSite(c3, c1, c2, cw2[0], cw2[1], cw2[2])
-                c07 = simtk.openmm.OutOfPlaneSite(c1, c2, c3, cw3[0], cw3[1], cw3[2])
-                c08 = simtk.openmm.OutOfPlaneSite(c1, c2, c3, cw4[0], cw4[1], cw4[2])
-                c09 = simtk.openmm.OutOfPlaneSite(c2, c3, c1, cw3[0], cw3[1], cw3[2])
-                c10 = simtk.openmm.OutOfPlaneSite(c2, c3, c1, cw4[0], cw4[1], cw4[2])
-                c11 = simtk.openmm.OutOfPlaneSite(c3, c1, c2, cw3[0], cw3[1], cw3[2])
-                c12 = simtk.openmm.OutOfPlaneSite(c3, c1, c2, cw4[0], cw4[1], cw4[2])
-                cc = simtk.openmm.ThreeParticleAverageSite(c1, c2, c3, 1 / 3., 1 / 3., 1 / 3.)
+                c01 = openmm.OutOfPlaneSite(c1, c2, c3, cw1[0], cw1[1], cw1[2])
+                c02 = openmm.OutOfPlaneSite(c1, c2, c3, cw2[0], cw2[1], cw2[2])
+                c03 = openmm.OutOfPlaneSite(c2, c3, c1, cw1[0], cw1[1], cw1[2])
+                c04 = openmm.OutOfPlaneSite(c2, c3, c1, cw2[0], cw2[1], cw2[2])
+                c05 = openmm.OutOfPlaneSite(c3, c1, c2, cw1[0], cw1[1], cw1[2])
+                c06 = openmm.OutOfPlaneSite(c3, c1, c2, cw2[0], cw2[1], cw2[2])
+                c07 = openmm.OutOfPlaneSite(c1, c2, c3, cw3[0], cw3[1], cw3[2])
+                c08 = openmm.OutOfPlaneSite(c1, c2, c3, cw4[0], cw4[1], cw4[2])
+                c09 = openmm.OutOfPlaneSite(c2, c3, c1, cw3[0], cw3[1], cw3[2])
+                c10 = openmm.OutOfPlaneSite(c2, c3, c1, cw4[0], cw4[1], cw4[2])
+                c11 = openmm.OutOfPlaneSite(c3, c1, c2, cw3[0], cw3[1], cw3[2])
+                c12 = openmm.OutOfPlaneSite(c3, c1, c2, cw4[0], cw4[1], cw4[2])
+                cc = openmm.ThreeParticleAverageSite(c1, c2, c3, 1 / 3., 1 / 3., 1 / 3.)
                 # Set up virtual positions
                 self.system.setVirtualSite(ix['C01'], c01)
                 self.system.setVirtualSite(ix['C02'], c02)
@@ -828,21 +828,21 @@ class CoarseActin:
         """ Adds the forces to the system """
         self.clearForces()
         # Harmonic Bonds
-        harmonic_bond = simtk.openmm.HarmonicBondForce()
+        harmonic_bond = openmm.HarmonicBondForce()
         harmonic_bond.setUsesPeriodicBoundaryConditions(True)
         for i, b in self.bonds.iterrows():
             harmonic_bond.addBond(int(b['i']), int(b['j']), b['r0'] / 10., b['K'] * 4.184 * 100)
         self.system.addForce(harmonic_bond)
 
         # Harmonic angles
-        harmonic_angle = simtk.openmm.HarmonicAngleForce()
+        harmonic_angle = openmm.HarmonicAngleForce()
         harmonic_angle.setUsesPeriodicBoundaryConditions(True)
         for i, b in self.angles.iterrows():
             harmonic_angle.addAngle(int(b['i']), int(b['j']), int(b['k']), b['t0'] / 180 * np.pi, b['K'] * 4.184)
         self.system.addForce(harmonic_angle)
 
         # Harmonic torsions
-        harmonic_torsion = simtk.openmm.PeriodicTorsionForce()
+        harmonic_torsion = openmm.PeriodicTorsionForce()
         harmonic_torsion.setUsesPeriodicBoundaryConditions(True)
         for i, b in self.dihedrals.iterrows():
             harmonic_torsion.addTorsion(int(b['i']), int(b['j']), int(b['k']), int(b['l']), b['period'],
@@ -853,7 +853,7 @@ class CoarseActin:
         for i, r in self.repulsion_definition.iterrows():
             # print(r)
             # print(r['force'].format(i))
-            rf = simtk.openmm.CustomNonbondedForce('(epsilon{0}*((sigma{0}/r)^12-2*(sigma{0}/r)^6)+epsilon{0})*step(sigma{0}-r)'.format(i))
+            rf = openmm.CustomNonbondedForce('(epsilon{0}*((sigma{0}/r)^12-2*(sigma{0}/r)^6)+epsilon{0})*step(sigma{0}-r)'.format(i))
             rf.setNonbondedMethod(rf.CutoffPeriodic)
             rf.addGlobalParameter('epsilon{0}'.format(i), r['epsilon'])
             rf.addGlobalParameter('sigma{0}'.format(i), r['sigma'])
@@ -885,7 +885,7 @@ class CoarseActin:
 
         if CaMKII_Force=='multigaussian':
             for i, j in comb:
-                gaussian = simtk.openmm.CustomHbondForce("-g_eps*g1;"
+                gaussian = openmm.CustomHbondForce("-g_eps*g1;"
                                                          "g1=(exp(-dd/w1)+exp(-dd/w2))/2;"
                                                          "dd=(dist1^2+dist2^2+dist3^2)/3;"
                                                          "dist1= distance(a1,d1);"
@@ -913,7 +913,7 @@ class CoarseActin:
                 self.system.addForce(gaussian)
         elif CaMKII_Force=='doublegaussian':
             for i, j in comb:
-                gaussian = simtk.openmm.CustomHbondForce("-g_eps*g1;"
+                gaussian = openmm.CustomHbondForce("-g_eps*g1;"
                                                          "g1=(exp(-dd/w1)+exp(-dd/w2))/2;"
                                                          "dd=(dist2^2+dist3^2)/2;"
                                                          "dist2= min(distance(a2,d2),distance(a2,d3));"
@@ -939,7 +939,7 @@ class CoarseActin:
 
                 self.system.addForce(gaussian)
         if CaMKII_Force=='singlegaussian':
-            gaussian = simtk.openmm.CustomHbondForce("-g_eps*g1;"
+            gaussian = openmm.CustomHbondForce("-g_eps*g1;"
                                                      "g1=(exp(-dd/w1)+exp(-dd/w2))/2;"
                                                      "dd= distance(a1,d1);")
 
@@ -969,14 +969,14 @@ class CoarseActin:
             print(self.periodic_box)
             midz = self.periodic_box[-1] / 2 / 10
             print(midz)
-            plane_constraint = simtk.openmm.CustomExternalForce('kp*(z-mid)^2')
+            plane_constraint = openmm.CustomExternalForce('kp*(z-mid)^2')
             plane_constraint.addGlobalParameter('mid', midz)
             plane_constraint.addGlobalParameter('kp', 0.001)
             for i in self.atom_list.index:
                 plane_constraint.addParticle(i, [])
             self.system.addForce(plane_constraint)
         else:
-            plane_constraint = simtk.openmm.CustomExternalForce('kp*0')
+            plane_constraint = openmm.CustomExternalForce('kp*0')
             plane_constraint.addGlobalParameter('kp', 0.001)
             for i in self.atom_list.index:
                 plane_constraint.addParticle(i, [])
@@ -984,7 +984,7 @@ class CoarseActin:
 
         if BundleConstraint:
             print('Bundle Constraint added')
-            bundle_constraint = simtk.openmm.CustomCentroidBondForce(2, 'kp_bundle*(distance(g1,g2)^2-(x1-x2)^2)')
+            bundle_constraint = openmm.CustomCentroidBondForce(2, 'kp_bundle*(distance(g1,g2)^2-(x1-x2)^2)')
             bundle_constraint.addGlobalParameter('kp_bundle',0.01)
             bundle_constraint.setUsesPeriodicBoundaryConditions(True)
             cc = 0
@@ -1004,7 +1004,7 @@ class CoarseActin:
             print(self.system.getNumForces())
         else:
             print('Bundled constrain not added')
-            bundle_constraint = simtk.openmm.CustomCentroidBondForce(2, '0*kp_bundle*(distance(g1,g2)^2-(x1-x2)^2)')
+            bundle_constraint = openmm.CustomCentroidBondForce(2, '0*kp_bundle*(distance(g1,g2)^2-(x1-x2)^2)')
             bundle_constraint.addGlobalParameter('kp_bundle',0.01)
             bundle_constraint.setUsesPeriodicBoundaryConditions(True)
             cc = 0
@@ -1020,13 +1020,13 @@ class CoarseActin:
             print(self.system.getNumForces())
         '''
 	if BundleConstraint:
-            bundle_constraint = simtk.openmm.CustomCompoundBondForce(2,'kb*((y1-y2)^2+(z1+z2)^2')
+            bundle_constraint = openmm.CustomCompoundBondForce(2,'kb*((y1-y2)^2+(z1+z2)^2')
             bundle_constraint.addGlobalParameter('kb', 0.1)
             for i in self.atom_list.index:
                 bundle_constraint.addBond(i, [])
             self.system.addForce(bundle_constraint)
         else:
-            bundle_constraint = simtk.openmm.CustomExternalForce('kb*0')
+            bundle_constraint = openmm.CustomExternalForce('kb*0')
             bundle_constraint.addGlobalParameter('kb', 0.1)
             for i in self.atom_list.index:
                 bundle_constraint.addParticle(i, [])
@@ -1271,28 +1271,28 @@ if __name__=='__main__':
     ##############
     import sys
     sys.path.insert(0,'.')
-    import simtk.openmm
-    import simtk.openmm.app
+    import openmm
+    import openmm.app
     from simtk.unit import *
     import time
     from sys import stdout
 
     time.ctime()
-    platform = simtk.openmm.Platform.getPlatformByName(simulation_platform)
+    platform = openmm.Platform.getPlatformByName(simulation_platform)
 
     #Create system
     s=CoarseActin.from_topology(f'{Sname}.pdb',)
     print("System initialized")
     s.setForces(BundleConstraint=aligned,PlaneConstraint=system2D,
                 CaMKII_Force=sjob['CaMKII_Force'])
-    top=simtk.openmm.app.PDBFile(f'{Sname}.pdb')
-    coord=simtk.openmm.app.GromacsGroFile(f'{Sname}.gro')
+    top=openmm.app.PDBFile(f'{Sname}.pdb')
+    coord=openmm.app.GromacsGroFile(f'{Sname}.gro')
 
 
     #Set up simulation
     temperature=sjob["temperature"]*kelvin
-    integrator = simtk.openmm.LangevinIntegrator(temperature, .0001/picosecond, 1*picoseconds)
-    simulation = simtk.openmm.app.Simulation(top.topology, s.system, integrator,platform)
+    integrator = openmm.LangevinIntegrator(temperature, .0001/picosecond, 1*picoseconds)
+    simulation = openmm.app.Simulation(top.topology, s.system, integrator,platform)
     simulation.context.setPositions(coord.positions)
 
 
@@ -1301,9 +1301,9 @@ if __name__=='__main__':
 
     frequency=sjob["frequency"]
     #Add reporters
-    simulation.reporters.append(simtk.openmm.app.DCDReporter(f'{Sname}.dcd', frequency),)
-    simulation.reporters.append(simtk.openmm.app.StateDataReporter(stdout, frequency, step=True,time=True,potentialEnergy=True, temperature=True,separator='\t',))
-    simulation.reporters.append(simtk.openmm.app.StateDataReporter(f'{Sname}.log', frequency, step=True,time=True,totalEnergy=True, kineticEnergy=True,potentialEnergy=True, temperature=True))
+    simulation.reporters.append(openmm.app.DCDReporter(f'{Sname}.dcd', frequency),)
+    simulation.reporters.append(openmm.app.StateDataReporter(stdout, frequency, step=True,time=True,potentialEnergy=True, temperature=True,separator='\t',))
+    simulation.reporters.append(openmm.app.StateDataReporter(f'{Sname}.log', frequency, step=True,time=True,totalEnergy=True, kineticEnergy=True,potentialEnergy=True, temperature=True))
 
     #Print initial energy
     state = simulation.context.getState(getEnergy=True)

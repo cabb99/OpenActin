@@ -5,7 +5,9 @@ import io
 """
 Python library to allow easy handling of coordinate files for molecular dynamics using pandas DataFrames.
 """
-
+import warnings
+warnings.filterwarnings('error')
+warnings.filterwarnings('ignore',category=DeprecationWarning)
 
 if __name__ == "__main__":
     import utils
