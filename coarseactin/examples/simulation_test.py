@@ -144,9 +144,10 @@ if __name__ == '__main__':
 
 
     print('Converting')
-    chain_names = chain_names = [a for a in (string.ascii_uppercase + string.ascii_lowercase)] +\
-                                [a+b for a,b in itertools.product(string.ascii_uppercase + string.ascii_lowercase,repeat=2)]
-    chain_names = chain_names[:len(full_model)]
+    name_generator = coarseactin.chain_name_generator()
+    chain_names = [c for _ in range(len(full_model))]
+    name_generator.close()
+
     chainID = [c for a, b in zip(chain_names, full_model) for c in [a]*len(b)]
     model = coarseactin.Scene(pandas.concat(full_model))
     model['chainID'] = chainID
@@ -159,7 +160,7 @@ if __name__ == '__main__':
     i = sel.index
     d = sdist.pdist(sel[['x', 'y', 'z']])
     d = pandas.Series(d, itertools.combinations(i, 2))
-    sel2 = sel.loc[[a for a, b in d[d < 35].index]]
+    sel2 = sel.loc[[a for a, b in d[d < 350].index]]
     print(len(sel2))
     full_model.loc[:, 'chain_resid'] = full_model[['chainID', 'resid', ]].apply(lambda x: ''.join([str(a) for a in x]),
                                                                                 axis=1)
@@ -174,13 +175,14 @@ if __name__ == '__main__':
     full_model = coarseactin.Scene(full_model.sort_values(['chainID', 'resid', 'name']))
     full_model.write_cif('full_model_step2.cif', verbose=True)
 
+    1/0
     #Remove the CaMKII that are colliding
     print('Removing Collisions')
     sel=full_model[full_model['name']=='Cc']
     i=sel.index
     d=sdist.pdist(sel[['x','y','z']])
     d=pandas.Series(d,itertools.combinations(i,2))
-    sel2=sel.loc[[b for a,b in d[d<35].index]]
+    sel2=sel.loc[[b for a,b in d[d<350].index]]
     #print(len(sel2))
     full_model.loc[:,'chain_resid']=full_model[['chainID','resid',]].apply(lambda x:''.join([str(a) for a in x]),axis=1)
     #print(len(full_model[full_model['resname'].isin(['ACT','ACD'])]))

@@ -283,8 +283,10 @@ class Scene(pandas.DataFrame):
         # Override chain names if molecule is present
         if 'molecule' in pdb_table:
             import string
-            cc = (string.ascii_uppercase.replace('X', '') + string.ascii_lowercase + '1234567890' + 'X') * 1000
-            cc_d = dict(zip(range(1, len(cc) + 1), cc))
+            cc = utils.chain_name_generator(format='pdb')
+            molecules = self.atoms['molecule'].unique()
+            cc_d = dict(zip(molecules, cc))
+            #cc_d = dict(zip(range(1, len(cc) + 1), cc))
             pdb_table['chainID'] = self.atoms['molecule'].replace(cc_d)
 
         # Write pdb file

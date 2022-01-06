@@ -8,8 +8,8 @@ Handles the system class for openMM
 
 
 
-import simtk.openmm
-import simtk.openmm.app
+import openmm
+import openmm.app
 from simtk import unit
 import numpy as np
 import pandas
