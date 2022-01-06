@@ -11,10 +11,11 @@ else:
     from . import utils
 
 _protein_residues = {'ALA': 'A', 'CYS': 'C', 'ASP': 'D', 'GLU': 'E',
-                    'PHE': 'F', 'GLY': 'G', 'HIS': 'H', 'ILE': 'I',
-                    'LYS': 'K', 'LEU': 'L', 'MET': 'M', 'ASN': 'N',
-                    'PRO': 'P', 'GLN': 'Q', 'ARG': 'R', 'SER': 'S',
-                    'THR': 'T', 'VAL': 'V', 'TRP': 'W', 'TYR': 'Y'}
+                     'PHE': 'F', 'GLY': 'G', 'HIS': 'H', 'ILE': 'I',
+                     'LYS': 'K', 'LEU': 'L', 'MET': 'M', 'ASN': 'N',
+                     'PRO': 'P', 'GLN': 'Q', 'ARG': 'R', 'SER': 'S',
+                     'THR': 'T', 'VAL': 'V', 'TRP': 'W', 'TYR': 'Y'}
+
 
 class Scene(pandas.DataFrame):
     # Initialization
@@ -22,12 +23,12 @@ class Scene(pandas.DataFrame):
         """Create an empty scene from particles.
         The Scene object is a wraper of a pandas DataFrame with extra information"""
         pandas.DataFrame.__init__(self, particles)
-        #Add metadata dictionary
+        # Add metadata dictionary
         self.__dict__['_meta'] = {}
 
         if 'x' in self.columns:
             if 'y' not in self.columns or 'z' not in self.columns:
-               raise TypeError('E')
+                raise TypeError('E')
         elif len(self.columns) == 3:
             pandas.DataFrame.__init__(self, particles, columns=['x', 'y', 'z'])
         else:
@@ -52,12 +53,12 @@ class Scene(pandas.DataFrame):
         if 'tempFactor' not in self.columns:
             self['tempFactor'] = [1.0] * len(self)
 
-        #Map chain index to index
+        # Map chain index to index
         if 'chain_index' not in self.columns:
             chain_map = {b: a for a, b in enumerate(self['chainID'].unique())}
             self['chain_index'] = self['chainID'].replace(chain_map)
 
-        #Map residue to index
+        # Map residue to index
         if 'res_index' not in self.columns:
             resmap = []
             for c, chain in self.groupby('chain_index'):
@@ -67,7 +68,7 @@ class Scene(pandas.DataFrame):
                 resmap += [residues.replace(dict(zip(unique_residues, range(len(unique_residues)))))]
             self['res_index'] = pandas.concat(resmap)
 
-        #Add metadata
+        # Add metadata
         for attr, value in kwargs.items():
             self._meta[attr] = value
 
@@ -83,7 +84,7 @@ class Scene(pandas.DataFrame):
             else:
                 sel &= (self[key].isin(kwargs[key]))
 
-        #Assert there are not repeated atoms
+        # Assert there are not repeated atoms
         index = self[sel][['chain_index', 'res_index', 'name']]
         if len(index.duplicated()) == 0:
             print("Duplicated atoms found")
@@ -96,10 +97,10 @@ class Scene(pandas.DataFrame):
         # TODO: Implement splitting based on model and altLoc.
         # altLoc can be present in multiple regions (1zir)
         pass
-#        for m in self['model'].unique():
-#            for a in sel:
-#                pass
 
+    #        for m in self['model'].unique():
+    #            for a in sel:
+    #                pass
 
     @classmethod
     def from_pdb(cls, file, **kwargs):
@@ -194,19 +195,17 @@ class Scene(pandas.DataFrame):
         cif_atoms = pandas.DataFrame([atom_data.getFullRow(i) for i in range(atom_data.getRowCount())],
                                      columns=atom_data.getAttributeList(),
                                      index=range(atom_data.getRowCount()))
-        #Rename columns to pdb convention
+        # Rename columns to pdb convention
         cif_atoms = cif_atoms.rename(_cif_pdb_rename, axis=1)
         for col in cif_atoms.columns:
             try:
                 cif_atoms[col] = cif_atoms[col].astype(float)
-                if ((cif_atoms[col].astype(int) - cif_atoms[col])**2).sum() == 0:
+                if ((cif_atoms[col].astype(int) - cif_atoms[col]) ** 2).sum() == 0:
                     cif_atoms[col] = cif_atoms[col].astype(int)
                 continue
             except ValueError:
                 pass
         return cls(cif_atoms, **kwargs)
-
-
 
     @classmethod
     def from_gro(cls, gro, **kwargs):
@@ -286,17 +285,17 @@ class Scene(pandas.DataFrame):
             cc = utils.chain_name_generator(format='pdb')
             molecules = self.atoms['molecule'].unique()
             cc_d = dict(zip(molecules, cc))
-            #cc_d = dict(zip(range(1, len(cc) + 1), cc))
+            # cc_d = dict(zip(range(1, len(cc) + 1), cc))
             pdb_table['chainID'] = self.atoms['molecule'].replace(cc_d)
 
         # Write pdb file
-        lines=''
+        lines = ''
         for i, atom in pdb_table.iterrows():
             line = f'ATOM  {i:>5} {atom["name"]:^4} {atom["resName"]:<3} {atom["chainID"]}{atom["resSeq"]:>4}' + \
                    '    ' + \
                    f'{atom.x:>8.3f}{atom.y:>8.3f}{atom.z:>8.3f}' + ' ' * 22 + f'{atom.element:2}' + ' ' * 2
             assert len(line) == 80, f'An item in the atom table is longer than expected\n{line}'
-            lines+=line + '\n'
+            lines += line + '\n'
 
         if file is None:
             return io.StringIO(lines)
@@ -347,8 +346,10 @@ class Scene(pandas.DataFrame):
         pdbx_table['serial'] = np.arange(1, len(self) + 1) if 'serial' not in pdbx_table else pdbx_table['serial']
         pdbx_table['name'] = 'A' if 'name' not in pdbx_table else pdbx_table['name'].str.strip().replace('', '.')
         pdbx_table['altLoc'] = '?' if 'altLoc' not in pdbx_table else pdbx_table['altLoc'].str.strip().replace('', '.')
-        pdbx_table['resName'] = 'R' if 'resName' not in pdbx_table else pdbx_table['resName'].str.strip().replace('', '.')
-        pdbx_table['chainID'] = 'C' if 'chainID' not in pdbx_table else pdbx_table['chainID'].str.strip().replace('', '.')
+        pdbx_table['resName'] = 'R' if 'resName' not in pdbx_table else pdbx_table['resName'].str.strip().replace('',
+                                                                                                                  '.')
+        pdbx_table['chainID'] = 'C' if 'chainID' not in pdbx_table else pdbx_table['chainID'].str.strip().replace('',
+                                                                                                                  '.')
         pdbx_table['resSeq'] = 1 if 'resSeq' not in pdbx_table else pdbx_table['resSeq']
         pdbx_table['resIC'] = 1 if 'resIC' not in pdbx_table else pdbx_table['resIC']
         pdbx_table['iCode'] = '' if 'iCode' not in pdbx_table else pdbx_table['iCode'].str.strip().replace('', '.')
@@ -357,7 +358,8 @@ class Scene(pandas.DataFrame):
         assert 'z' in pdbx_table.columns, 'Coordinate x not in particle definition'
         pdbx_table['occupancy'] = 0 if 'occupancy' not in pdbx_table else pdbx_table['occupancy']
         pdbx_table['tempFactor'] = 0 if 'tempFactor' not in pdbx_table else pdbx_table['tempFactor']
-        pdbx_table['element'] = 'C' if 'element' not in pdbx_table else pdbx_table['element'].str.strip().replace('', '.')
+        pdbx_table['element'] = 'C' if 'element' not in pdbx_table else pdbx_table['element'].str.strip().replace('',
+                                                                                                                  '.')
         pdbx_table['charge'] = 0 if 'charge' not in pdbx_table else pdbx_table['charge']
         pdbx_table['model'] = 0 if 'model' not in pdbx_table else pdbx_table['model']
 
@@ -408,7 +410,7 @@ class Scene(pandas.DataFrame):
         pdb_atoms['serial'] = np.arange(1, len(self) + 1)
         pdb_atoms['chainID'] = pdb_atoms['molecule']
         if box_size is None:
-            box_size = pdb_atoms[['x','y','z']].max().max()
+            box_size = pdb_atoms[['x', 'y', 'z']].max().max()
 
         self.xmin, self.xmax = 0, box_size
         self.ymin, self.ymax = 0, box_size
@@ -436,7 +438,7 @@ class Scene(pandas.DataFrame):
                                     '', '', ''))
             f.write(('   ' + ' '.join(['%8.3f'] * 3) + '\n') % (self.xmax, self.ymax, self.zmax))
 
-    #get methods
+    # get methods
     def get_coordinates(self):
         return self[['x', 'y', 'z']]
 
@@ -467,18 +469,18 @@ class Scene(pandas.DataFrame):
         new.at[:, ['x', 'y', 'z']] = self.get_coordinates() + other
         return new
 
-    def dot(self,other):
+    def dot(self, other):
         new = self.copy()
         new.at[:, ['x', 'y', 'z']] = self.get_coordinates().dot(other)
         return new
 
-    #Container operations
-    #No container operations, a subset may require some coordinates and not the chain index
-    #def __getitem__(self, key):
-        #try:
-        #    return Scene(super().__getitem__(key))
-        #except TypeError:
-        #    return super().__getitem__(key)
+    # Container operations
+    # No container operations, a subset may require some coordinates and not the chain index
+    # def __getitem__(self, key):
+    # try:
+    #    return Scene(super().__getitem__(key))
+    # except TypeError:
+    #    return super().__getitem__(key)
     # Built ins
     def __repr__(self):
         return f'<Scene ({len(self)} particles)>\n{super().__repr__()}'
@@ -490,25 +492,25 @@ class Scene(pandas.DataFrame):
         else:
             coord = self.get_coordinates()
             temp = self.copy()
-            temp.set_coordinates(coord+other)
+            temp.set_coordinates(coord + other)
             return temp
 
     def __radd__(self, other):
         if isinstance(other, self.__class__):
-            return other+s
+            return other + s
         else:
             return Scene(super().__add__(other))
 
     def __mul__(self, other):
         coord = self.get_coordinates()
         temp = self.copy()
-        temp.set_coordinates(coord*other)
+        temp.set_coordinates(coord * other)
         return temp
 
     def __rmul__(self, other):
         coord = self.get_coordinates()
         temp = self.copy()
-        temp.set_coordinates(other*coord)
+        temp.set_coordinates(other * coord)
         return temp
 
     def __getattr__(self, attr):
@@ -540,8 +542,8 @@ class Scene(pandas.DataFrame):
             self.__dict__[attr] = value
     """
 
-if __name__ == '__main__':
 
+if __name__ == '__main__':
     particles = pandas.DataFrame([[0, 0, 0],
                                   [0, 1, 0],
                                   [0, 0, 1]],
@@ -569,8 +571,6 @@ if __name__ == '__main__':
     s2.to_csv('particles_2.csv')
     s3.to_csv('particles_3.csv')
     s4.to_csv('particles_4.csv')
-
-
 
 """
 import numpy as np
