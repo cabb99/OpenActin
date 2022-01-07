@@ -34,31 +34,32 @@ def create_actin(length=100,
     model["resSeq"] = [j + i for i in range(length) for j in bound_actin_template["resSeq"]]
     model["name"] = [j for i in range(length) for j in bound_actin_template["name"]]
     model["type"] = [j for i in range(length) for j in bound_actin_template["type"]]
-    model["resname"] = [j for i in range(length) for j in bound_actin_template["resname"]]
+    model["resName"] = [j for i in range(length) for j in bound_actin_template["resName"]]
+    model["element"] = [j for i in range(length) for j in bound_actin_template["element"]]
 
     # Remove two binding points
     model = model[~((model['resSeq'] > length - 1) & (model['name'].isin(
         ['A5', 'A6', 'A7'] + ['Cc'] + [f'C{i + 1:02}' for i in range(12)] + [f'Cx{i + 1}' for i in range(3)])))]
 
     # Remove all CaMKII except resid 50
-    # model=model[~((model['resid']!=50) & (model['resname'].isin(['CAM'])))]
+    # model=model[~((model['resid']!=50) & (model['resName'].isin(['CAM'])))]
 
-    model.loc[model[model['resSeq'] == model['resSeq'].max()].index, 'resname'] = 'ACD'
-    model.loc[model[model['resSeq'] == model['resSeq'].min()].index, 'resname'] = 'ACD'
+    model.loc[model[model['resSeq'] == model['resSeq'].max()].index, 'resName'] = 'ACD'
+    model.loc[model[model['resSeq'] == model['resSeq'].min()].index, 'resName'] = 'ACD'
     # for chain_name in string.ascii_uppercase + string.ascii_lowercase:
     # print(chain_name)
     #    if chain_name in full_model['chainID'].values:
-    #        model.loc[model['resname'].isin(['ACT', 'ACD']), 'chainID'] = chain_name
+    #        model.loc[model['resName'].isin(['ACT', 'ACD']), 'chainID'] = chain_name
     #        continue
-    #    model.loc[model['resname'].isin(['ACT', 'ACD']), 'chainID'] = chain_name
+    #    model.loc[model['resName'].isin(['ACT', 'ACD']), 'chainID'] = chain_name
     #    break
 
     # for chain_name in string.ascii_uppercase + string.ascii_lowercase:
     # print(chain_name,'A' in model['chainID'])
     #    if chain_name in full_model['chainID'].values or chain_name in model['chainID'].values:
-    #        model.loc[model['resname'].isin(['CAM']), 'chainID'] = chain_name
+    #        model.loc[model['resName'].isin(['CAM']), 'chainID'] = chain_name
     #        continue
-    #    model.loc[model['resname'].isin(['CAM']), 'chainID'] = chain_name
+    #    model.loc[model['resName'].isin(['CAM']), 'chainID'] = chain_name
     #    break
 
     # model["name"] = [j for i in range(1000) for j in ['A1', 'A2', 'A3', 'A4']]
@@ -82,7 +83,7 @@ if __name__ == '__main__':
     parameters = {"epsilon": [100],
                   "aligned": [False],
                   "actinLen": [500],
-                  "layers": [3],
+                  "layers": [2],
                   #            "repetition":range(3),
                   "disorder": [.5, .75],
                   "temperature": [300],
@@ -141,15 +142,18 @@ if __name__ == '__main__':
         full_model += [create_actin(length=sjob["actinLen"],
                                     translation=np.array([5000 + d * c[0], 5000 + d * c[1], 5000 + height]))]
 
+
     print('Concatenate chains')
-    name_generator = coarseactin.chain_name_generator()
-    chain_names = [next(name_generator) for _ in range(len(full_model))]
-    name_generator.close()
-    chainID = [c for a, b in zip(chain_names, full_model) for c in [a] * len(b)]
-    model = pandas.concat(full_model)
-    model['chainID'] = chainID
-    model.index = range(len(model))
-    full_model = coarseactin.Scene(model)
+    # name_generator = coarseactin.chain_name_generator()
+    # chain_names = [next(name_generator) for _ in range(len(full_model))]
+    # name_generator.close()
+    # chainID = [c for a, b in zip(chain_names, full_model) for c in [a] * len(b)]
+    # model = pandas.concat(full_model)
+    # model['chainID'] = chainID
+    # model.index = range(len(model))
+    # full_model = coarseactin.Scene(model)
+    # full_model.write_cif('full_model_step1.cif', verbose=True)
+    full_model = coarseactin.Scene.concatenate(full_model)
     full_model.write_cif('full_model_step1.cif', verbose=True)
 
     # Remove the CaMKII that are not overlapping
@@ -160,15 +164,16 @@ if __name__ == '__main__':
     d = sdist.pdist(sel[['x', 'y', 'z']])
     print('Making selections')
     d = pandas.Series(d, itertools.combinations(i, 2))
-    sel2 = sel.loc[list(set([a for a, b in d[d < 35].index]))]
+    close_abps=list(set([a for a, b in d[d < 35].index]))
+    sel2 = sel.loc[close_abps]
     print(len(sel2))
     full_model.loc[:, 'chain_resid'] = full_model[['chainID', 'resSeq', ]].apply(lambda x: ''.join([str(a) for a in x]),
                                                                                  axis=1)
-    print(len(full_model[full_model['resname'].isin(['ACT', 'ACD'])]))
+    print(len(full_model[full_model['resName'].isin(['ACT', 'ACD'])]))
     print(len(full_model[full_model['chain_resid'].isin(
         sel2[['chainID', 'resSeq', ]].apply(lambda x: ''.join([str(a) for a in x]), axis=1))]))
 
-    full_model = full_model[full_model['resname'].isin(['ACT', 'ACD']) |
+    full_model = full_model[full_model['resName'].isin(['ACT', 'ACD']) |
                             full_model['chain_resid'].isin(
                                 sel2[['chainID', 'resSeq', ]].apply(lambda x: ''.join([str(a) for a in x]), axis=1))]
     print(len(full_model))
@@ -186,7 +191,7 @@ if __name__ == '__main__':
     # print(len(sel2))
     full_model.loc[:, 'chain_resid'] = full_model[['chainID', 'resSeq', ]].apply(lambda x: ''.join([str(a) for a in x]),
                                                                                  axis=1)
-    # print(len(full_model[full_model['resname'].isin(['ACT','ACD'])]))
+    # print(len(full_model[full_model['resName'].isin(['ACT','ACD'])]))
     # print(len(full_model[full_model['chain_resid'].isin(sel2[['chainID','resid',]].apply(lambda x:''.join([str(a) for a in x]),axis=1))]))
 
     full_model = full_model[~full_model['chain_resid'].isin(
@@ -202,6 +207,26 @@ if __name__ == '__main__':
     # ss.print_coeff()
 
     full_model = coarseactin.Scene(full_model.sort_values(['chainID', 'resSeq', 'name']))
+    full_model_actin = coarseactin.Scene(full_model[full_model['resName'].isin(['ACT','ACD'])])
+    full_model_abps = coarseactin.Scene(full_model[~full_model['resName'].isin(['ACT', 'ACD'])])
+    full_model_abps['chainID']='A'
+    full_model = coarseactin.Scene.concatenate([full_model_actin,full_model_abps])
+
 
     full_model.write_cif('full_model.cif', verbose=True)
     full_model.write_gro('full_model.gro', verbose=True)
+
+    ##############
+    # Simulation #
+    ##############
+    import sys
+    sys.path.insert(0,'.')
+    import openmm
+    import openmm.app
+    #from simtk.unit import *
+    import time
+    from sys import stdout
+
+    time.ctime()
+    platform = openmm.Platform.getPlatformByName(simulation_platform)
+    s = coarseactin.CoarseActin.from_topology('full_model.cif',)

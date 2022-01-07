@@ -1,3 +1,6 @@
+import pandas
+
+
 def parseConfigTable(config_section):
     """Parses a section of the configuration file as a table"""
 

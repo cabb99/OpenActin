@@ -257,6 +257,25 @@ class Scene(pandas.DataFrame):
         atom_list.index = atom_list['serial']
         return cls(atom_list, **kwargs)
 
+    @classmethod
+    def concatenate(cls, scene_list):
+        #Set chain names
+        chainID = []
+        name_generator = utils.chain_name_generator()
+        for scene in scene_list:
+            if 'chainID' not in scene:
+                chainID += [next(name_generator)]*len(scene)
+            else:
+                chains = list(scene['chainID'].unique())
+                chains.sort()
+                chain_replace = {chain: next(name_generator) for chain in chains}
+                chainID += list(scene['chainID'].replace(chain_replace))
+        name_generator.close()
+        model = pandas.concat(scene_list)
+        model['chainID'] = chainID
+        model.index = range(len(model))
+        return cls(model)
+
     # Writing
     def write_pdb(self, file=None, verbose=False):
         # Fill empty columns
@@ -405,7 +424,7 @@ class Scene(pandas.DataFrame):
         gro_line = "%5d%-5s%5s%5d%8s%8s%8s%8s%8s%8s\n"
         pdb_atoms = self.copy()
         pdb_atoms['resName'] = pdb_atoms[
-            'resname']  # self.atoms['molecule_name'].replace({'actin':'ACT','camkii':'CAM'})
+            'resName']  # self.atoms['molecule_name'].replace({'actin':'ACT','camkii':'CAM'})
         # pdb_atoms['name']       = self.atoms['type'].replace({1:'Aa',2:'Ab',3:'Ca',4:'Cb',5:'Da',6:'Db'})
         pdb_atoms['serial'] = np.arange(1, len(self) + 1)
         pdb_atoms['chainID'] = pdb_atoms['molecule']
@@ -541,6 +560,7 @@ class Scene(pandas.DataFrame):
         else:
             self.__dict__[attr] = value
     """
+
 
 
 if __name__ == '__main__':

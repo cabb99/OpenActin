@@ -7,6 +7,7 @@ Coarse Grained Model of Actin
 #from .system import *
 #from .actin import *
 from .Scene import *
+from .System import *
 from .components import *
 from .utils.SlurmJobArray import SlurmJobArray
 from .utils.HexGrid import HexGrid

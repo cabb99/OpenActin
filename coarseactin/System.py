@@ -1,10 +1,10 @@
 """
-system.py
+System.py
 Handles the system class for openMM
 """
 
 # Global imports
-
+import warnings
 
 import openmm
 import openmm.app
@@ -186,7 +186,7 @@ class SystemData:
         # pdb_atoms['name']       = self.atoms['type'].replace({1:'A1',2:'A2',3:'A3',4:'A4',5:'A5',6:'C1',7:'C2'})
         pdb_atoms['altLoc'] = ''
         # pdb_atoms['resName']    = self.atoms['molecule_name'].replace({'actin':'ACT','camkii':'CAM'})
-        pdb_atoms['resName'] = self.atoms['resname']
+        pdb_atoms['resName'] = self.atoms['resName']
         pdb_atoms['chainID'] = self.atoms['molecule'].replace(cc_d)
         # pdb_atoms['resSeq']     = 0
         pdb_atoms['iCode'] = ''
@@ -214,7 +214,7 @@ class SystemData:
                                     a['altLoc'],
                                     a['resName'],
                                     a['chainID'],
-                                    a['resid'],
+                                    a['resSeq'],
                                     a['iCode'],
                                     ('%8.3f' % (a['x'] / 10))[:8],
                                     ('%8.3f' % (a['y'] / 10))[:8],
@@ -228,7 +228,7 @@ class SystemData:
         gro_line = "%5d%-5s%5s%5d%8s%8s%8s%8s%8s%8s\n"
         pdb_atoms = self.atoms.copy()
         pdb_atoms['resName'] = self.atoms[
-            'resname']  # self.atoms['molecule_name'].replace({'actin':'ACT','camkii':'CAM'})
+            'resName']  # self.atoms['molecule_name'].replace({'actin':'ACT','camkii':'CAM'})
         # pdb_atoms['name']       = self.atoms['type'].replace({1:'Aa',2:'Ab',3:'Ca',4:'Cb',5:'Da',6:'Db'})
         pdb_atoms['serial'] = np.arange(1, len(self.atoms) + 1)
         pdb_atoms['chainID'] = self.atoms['molecule']
@@ -376,8 +376,8 @@ class CoarseActin:
             atoms['type'] = [1, 2, 3, 4] * 2 + [1, 2, 3, 4, 5, 6, 7] * (nactins - 2)
             atoms['name'] = names
             # atoms['mass']=[D1_mass,D2_mass,D3_mass,D4_mass]*2+([D1_mass,D2_mass,D3_mass,D4_mass,0,0,0])*(nactins-2)
-            atoms['resid'] = resids
-            atoms['resname'] = resnames
+            atoms['resSeq'] = resids
+            atoms['resName'] = resnames
             atoms.head()
             factin += [atoms.copy()]
 
@@ -410,7 +410,7 @@ class CoarseActin:
                 # f+=[box_size/2. for i in range(3)]
                 f2['molecule'] = i + 1
                 f2['molecule_name'] = 'actin'
-                f2['resname'] = factin[i]['resname']
+                f2['resName'] = factin[i]['resName']
                 try:
                     d = sdist.cdist(f2[['x', 'y', 'z']], s[s['name'].isin(['A2', 'Cc'])][['x', 'y', 'z']]).min()
                 except KeyError:
@@ -437,8 +437,8 @@ class CoarseActin:
                 # f+=[box_size/2. for i in range(3)]
                 f2['molecule'] = n_actins + i + 1
                 f2['molecule_name'] = 'camkii'
-                f2['resid'] = i + 1
-                f2['resname'] = 'CAM'
+                f2['resSeq'] = i + 1
+                f2['resName'] = 'CAM'
                 # f2['mass']/=100
                 # rr=np.random.randint(2)
                 # if rr==1:
@@ -452,7 +452,7 @@ class CoarseActin:
         s.index = np.arange(1, len(s) + 1)
         s['mass'] = np.nan
         # Write system
-        ss = SystemData(s.sort_values(['molecule', 'resid', 'name']))
+        ss = SystemData(s.sort_values(['molecule', 'resSeq', 'name']))
         ss.write_data()
         ss.write_pdb(f'{sname}.pdb')
         ss.write_gro(f'{sname}.gro')
@@ -463,8 +463,14 @@ class CoarseActin:
     def from_topology(cls, topology_file='actin.pdb', periodic_box=10000, PlaneConstraint=False):
         self = cls()
         self.periodic_box = [periodic_box * 0.1] * 3
-        self.forcefield = openmm.app.ForceField(f'{__location__}/ff.xml')
-        self.top = openmm.app.PDBFile(topology_file)
+        self.forcefield = openmm.app.ForceField(f'{__location__}/data/ff.xml')
+        if topology_file[-3:]=='pdb':
+            self.top = openmm.app.PDBFile(topology_file)
+        elif topology_file[-3:]=='cif':
+            self.top = openmm.app.PDBxFile(topology_file)
+        else:
+            print('Unrecognized format for topology')
+            raise IOError
         self.system = self.forcefield.createSystem(self.top.topology)
         self.system.setDefaultPeriodicBoxVectors(*np.diag(self.periodic_box))
         self.atom_list = self.parseTop()
@@ -474,7 +480,7 @@ class CoarseActin:
         return self
         # Parse topology data
 
-    def parseConfigurationFile(self, configuration_file=f'{__location__}/actinff.conf'):
+    def parseConfigurationFile(self, configuration_file=f'{__location__}/data/actinff.conf'):
         """Reads the configuration file for the forcefield"""
         self.configuration_file = configuration_file
         config = configparser.ConfigParser()
