@@ -667,6 +667,7 @@ class CoarseActin:
         self.clearForces()
         # Harmonic Bonds
         harmonic_bond = openmm.HarmonicBondForce()
+        harmonic_bond.setForceGroup(1)
         if self.periodic_box is not None:
             harmonic_bond.setUsesPeriodicBoundaryConditions(True)
         else:
@@ -677,6 +678,7 @@ class CoarseActin:
 
         # Harmonic angles
         harmonic_angle = openmm.HarmonicAngleForce()
+        harmonic_angle.setForceGroup(2)
         if self.periodic_box is not None:
             harmonic_angle.setUsesPeriodicBoundaryConditions(True)
         else:
@@ -687,6 +689,7 @@ class CoarseActin:
 
         # Harmonic torsions
         harmonic_torsion = openmm.PeriodicTorsionForce()
+        harmonic_torsion.setForceGroup(3)
         if self.periodic_box is not None:
             harmonic_torsion.setUsesPeriodicBoundaryConditions(True)
         else:
@@ -701,6 +704,7 @@ class CoarseActin:
             # print(r)
             # print(r['force'].format(i))
             rf = openmm.CustomNonbondedForce('(epsilon{0}*((sigma{0}/r)^12-2*(sigma{0}/r)^6)+epsilon{0})*step(sigma{0}-r)'.format(i))
+            rf.setForceGroup(4)
             if self.periodic_box is not None:
                 rf.setNonbondedMethod(rf.CutoffPeriodic)
             else:
@@ -742,6 +746,7 @@ class CoarseActin:
                                                          "dist2= min(distance(a2,d2),distance(a2,d3));"
                                                          "dist3= min(distance(a3,d2),distance(a3,d3));")
 
+                gaussian.setForceGroup(5)
                 if self.periodic_box is not None:
                     gaussian.setNonbondedMethod(gaussian.CutoffPeriodic)
                 else:
@@ -772,6 +777,7 @@ class CoarseActin:
                                                          "dist2= min(distance(a2,d2),distance(a2,d3));"
                                                          "dist3= min(distance(a3,d2),distance(a3,d3));")
 
+                gaussian.setForceGroup(5)
                 if self.periodic_box is not None:
                     gaussian.setNonbondedMethod(gaussian.CutoffPeriodic)
                 else:
@@ -799,6 +805,7 @@ class CoarseActin:
                                                      "g1=(exp(-dd/w1)+exp(-dd/w2))/2;"
                                                      "dd= distance(a1,d1);")
 
+            gaussian.setForceGroup(5)
             if self.periodic_box is not None:
                 gaussian.setNonbondedMethod(gaussian.CutoffPeriodic)
             else:
@@ -829,6 +836,7 @@ class CoarseActin:
             midz = self.periodic_box[-1] / 2 / 10
             print(midz)
             plane_constraint = openmm.CustomExternalForce('kp*(z-mid)^2')
+            plane_constraint.setForceGroup(6)
             #if self.periodic_box is not None:
             #    plane_constraint.setUsesPeriodicBoundaryConditions(True)
             #else:
@@ -840,6 +848,7 @@ class CoarseActin:
             self.system.addForce(plane_constraint)
         else:
             plane_constraint = openmm.CustomExternalForce('kp*0')
+            plane_constraint.setForceGroup(6)
             #if self.periodic_box is not None:
             #    plane_constraint.setUsesPeriodicBoundaryConditions(True)
             #else:
@@ -852,6 +861,7 @@ class CoarseActin:
         if BundleConstraint:
             print('Bundle Constraint added')
             bundle_constraint = openmm.CustomCentroidBondForce(2, 'kp_bundle*(distance(g1,g2)^2-(x1-x2)^2)')
+            bundle_constraint.setForceGroup(7)
             bundle_constraint.addGlobalParameter('kp_bundle', 0.01)
             if self.periodic_box is not None:
                 bundle_constraint.setUsesPeriodicBoundaryConditions(True)
@@ -875,6 +885,7 @@ class CoarseActin:
         else:
             print('Bundled constrain not added')
             bundle_constraint = openmm.CustomCentroidBondForce(2, '0*kp_bundle*(distance(g1,g2)^2-(x1-x2)^2)')
+            bundle_constraint.setForceGroup(7)
             bundle_constraint.addGlobalParameter('kp_bundle', 0.01)
             if self.periodic_box is not None:
                 bundle_constraint.setUsesPeriodicBoundaryConditions(True)
