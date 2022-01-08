@@ -202,7 +202,7 @@ if __name__ == '__main__':
     # print(len(full_model[full_model['resName'].isin(['ACT','ACD'])]))
     # print(len(full_model[full_model['chain_resid'].isin(sel2[['chainID','resid',]].apply(lambda x:''.join([str(a) for a in x]),axis=1))]))
 
-    full_model = full_model[~full_model['chain_resid'].isin(
+    full_model = full_model[full_model['resName'].isin(['ACT', 'ACD']) | ~full_model['chain_resid'].isin(
         sel2[['chainID', 'resSeq', ]].apply(lambda x: ''.join([str(a) for a in x]), axis=1))]
 
     full_model['mass'] = 1
