@@ -83,7 +83,7 @@ if __name__ == '__main__':
     parameters = {"epsilon": [100],
                   "aligned": [False],
                   "actinLen": [500],
-                  "layers": [2],
+                  "layers": [3],
                   #            "repetition":range(3),
                   "disorder": [.5, .75],
                   "temperature": [300],
@@ -94,7 +94,7 @@ if __name__ == '__main__':
                   "simulation_platform": ["OpenCL"]}
     test_parameters = {"simulation_platform": "CUDA",
                        "frequency": 1000,
-                       "run_time": 0.1,
+                       "run_time": 2,
                        "CaMKII_Force": 'multigaussian'
                        }
     job_id = 0
@@ -138,9 +138,17 @@ if __name__ == '__main__':
 
     for c in coords:
         height = (random.random() - 0.5) * 39 * 28.21600347 * sjob["disorder"]
+
+        t = np.random.random()*np.pi*2
+        rotation = np.array([[np.cos(t), -np.sin(t), 0.],
+                             [np.sin(t), np.cos(t), 0.],
+                             [0., 0., 1.]])
         print(c[0], c[1], height)
         full_model += [create_actin(length=sjob["actinLen"],
-                                    translation=np.array([5000 + d * c[0], 5000 + d * c[1], 5000 + height]))]
+                                    translation=np.array([5000 + d * c[0], 5000 + d * c[1], 5000 + height]),
+                                    rotation=rotation)]
+        #Add a random rotation around the z axis
+
 
 
     print('Concatenate chains')
@@ -187,7 +195,7 @@ if __name__ == '__main__':
     i = sel.index
     d = sdist.pdist(sel[['x', 'y', 'z']])
     d = pandas.Series(d, itertools.combinations(i, 2))
-    sel2 = sel.loc[list(set([b for a, b in d[d < 35].index]))]
+    sel2 = sel.loc[list(set([b for a, b in d[d < 1E5].index]))]
     # print(len(sel2))
     full_model.loc[:, 'chain_resid'] = full_model[['chainID', 'resSeq', ]].apply(lambda x: ''.join([str(a) for a in x]),
                                                                                  axis=1)
@@ -235,6 +243,7 @@ if __name__ == '__main__':
     # Create system
     platform = openmm.Platform.getPlatformByName(simulation_platform)
     s = coarseactin.CoarseActin.from_topology('full_model.cif',)
+    print(s.system.getDefaultPeriodicBoxVectors())
     s.setForces(BundleConstraint=aligned, PlaneConstraint=system2D, CaMKII_Force=sjob['CaMKII_Force'])
     top = openmm.app.PDBxFile('full_model.cif')
     coord = openmm.app.PDBxFile('full_model.cif')

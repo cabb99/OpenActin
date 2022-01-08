@@ -461,9 +461,12 @@ class CoarseActin:
         return self.from_topology(topology_file=f'{sname}.pdb', PlaneConstraint=system2D, periodic_box=box_size)
 
     @classmethod
-    def from_topology(cls, topology_file='actin.pdb', periodic_box=10000, PlaneConstraint=False):
+    def from_topology(cls, topology_file='actin.pdb', periodic_box=None, PlaneConstraint=False):
         self = cls()
-        self.periodic_box = [periodic_box * 0.1] * 3
+        if periodic_box is not None:
+            self.periodic_box = [periodic_box * 0.1] * 3
+        else:
+            self.periodic_box = None
         self.forcefield = openmm.app.ForceField(f'{__location__}/data/ff.xml')
         if topology_file[-3:]=='pdb':
             self.top = openmm.app.PDBFile(topology_file)
@@ -473,7 +476,8 @@ class CoarseActin:
             print('Unrecognized format for topology')
             raise IOError
         self.system = self.forcefield.createSystem(self.top.topology)
-        self.system.setDefaultPeriodicBoxVectors(*np.diag(self.periodic_box))
+        if periodic_box is not None:
+            self.system.setDefaultPeriodicBoxVectors(*np.diag(self.periodic_box))
         self.atom_list = self.parseTop()
         self.BuildVirtualSites()
         self.ComputeTopology()
@@ -663,21 +667,30 @@ class CoarseActin:
         self.clearForces()
         # Harmonic Bonds
         harmonic_bond = openmm.HarmonicBondForce()
-        harmonic_bond.setUsesPeriodicBoundaryConditions(True)
+        if self.periodic_box is not None:
+            harmonic_bond.setUsesPeriodicBoundaryConditions(True)
+        else:
+            harmonic_bond.setUsesPeriodicBoundaryConditions(False)
         for i, b in self.bonds.iterrows():
             harmonic_bond.addBond(int(b['i']), int(b['j']), b['r0'] / 10., b['K'] * 4.184 * 100)
         self.system.addForce(harmonic_bond)
 
         # Harmonic angles
         harmonic_angle = openmm.HarmonicAngleForce()
-        harmonic_angle.setUsesPeriodicBoundaryConditions(True)
+        if self.periodic_box is not None:
+            harmonic_angle.setUsesPeriodicBoundaryConditions(True)
+        else:
+            harmonic_angle.setUsesPeriodicBoundaryConditions(False)
         for i, b in self.angles.iterrows():
             harmonic_angle.addAngle(int(b['i']), int(b['j']), int(b['k']), b['t0'] / 180 * np.pi, b['K'] * 4.184)
         self.system.addForce(harmonic_angle)
 
         # Harmonic torsions
         harmonic_torsion = openmm.PeriodicTorsionForce()
-        harmonic_torsion.setUsesPeriodicBoundaryConditions(True)
+        if self.periodic_box is not None:
+            harmonic_torsion.setUsesPeriodicBoundaryConditions(True)
+        else:
+            harmonic_torsion.setUsesPeriodicBoundaryConditions(False)
         for i, b in self.dihedrals.iterrows():
             harmonic_torsion.addTorsion(int(b['i']), int(b['j']), int(b['k']), int(b['l']), b['period'],
                                         b['t0'] / 180 * np.pi, b['K'] * 4.184)
@@ -688,7 +701,10 @@ class CoarseActin:
             # print(r)
             # print(r['force'].format(i))
             rf = openmm.CustomNonbondedForce('(epsilon{0}*((sigma{0}/r)^12-2*(sigma{0}/r)^6)+epsilon{0})*step(sigma{0}-r)'.format(i))
-            rf.setNonbondedMethod(rf.CutoffPeriodic)
+            if self.periodic_box is not None:
+                rf.setNonbondedMethod(rf.CutoffPeriodic)
+            else:
+                rf.setNonbondedMethod(rf.CutoffNonPeriodic)
             rf.addGlobalParameter('epsilon{0}'.format(i), r['epsilon'])
             rf.addGlobalParameter('sigma{0}'.format(i), r['sigma'])
             rf.setCutoffDistance(10)
@@ -726,7 +742,10 @@ class CoarseActin:
                                                          "dist2= min(distance(a2,d2),distance(a2,d3));"
                                                          "dist3= min(distance(a3,d2),distance(a3,d3));")
 
-                gaussian.setNonbondedMethod(gaussian.CutoffPeriodic)
+                if self.periodic_box is not None:
+                    gaussian.setNonbondedMethod(gaussian.CutoffPeriodic)
+                else:
+                    gaussian.setNonbondedMethod(gaussian.CutoffNonPeriodic)
                 gaussian.addGlobalParameter('g_eps', 100)  # Energy minimum
                 gaussian.addGlobalParameter('w1', 5.0)  # well1 width
                 gaussian.addGlobalParameter('w2', 0.5)  # well2 width
@@ -753,7 +772,10 @@ class CoarseActin:
                                                          "dist2= min(distance(a2,d2),distance(a2,d3));"
                                                          "dist3= min(distance(a3,d2),distance(a3,d3));")
 
-                gaussian.setNonbondedMethod(gaussian.CutoffPeriodic)
+                if self.periodic_box is not None:
+                    gaussian.setNonbondedMethod(gaussian.CutoffPeriodic)
+                else:
+                    gaussian.setNonbondedMethod(gaussian.CutoffNonPeriodic)
                 gaussian.addGlobalParameter('g_eps', 100)  # Energy minimum
                 gaussian.addGlobalParameter('w1', 5.0)  # well1 width
                 gaussian.addGlobalParameter('w2', 0.5)  # well2 width
@@ -777,7 +799,10 @@ class CoarseActin:
                                                      "g1=(exp(-dd/w1)+exp(-dd/w2))/2;"
                                                      "dd= distance(a1,d1);")
 
-            gaussian.setNonbondedMethod(gaussian.CutoffPeriodic)
+            if self.periodic_box is not None:
+                gaussian.setNonbondedMethod(gaussian.CutoffPeriodic)
+            else:
+                gaussian.setNonbondedMethod(gaussian.CutoffNonPeriodic)
             gaussian.addGlobalParameter('g_eps', 100)  # Energy minimum
             gaussian.addGlobalParameter('w1', 5.0)  # well1 width
             gaussian.addGlobalParameter('w2', 0.5)  # well2 width
@@ -804,6 +829,10 @@ class CoarseActin:
             midz = self.periodic_box[-1] / 2 / 10
             print(midz)
             plane_constraint = openmm.CustomExternalForce('kp*(z-mid)^2')
+            #if self.periodic_box is not None:
+            #    plane_constraint.setUsesPeriodicBoundaryConditions(True)
+            #else:
+                #plane_constraint.setUsesPeriodicBoundaryConditions(False)
             plane_constraint.addGlobalParameter('mid', midz)
             plane_constraint.addGlobalParameter('kp', 0.001)
             for i in self.atom_list.index:
@@ -811,6 +840,10 @@ class CoarseActin:
             self.system.addForce(plane_constraint)
         else:
             plane_constraint = openmm.CustomExternalForce('kp*0')
+            #if self.periodic_box is not None:
+            #    plane_constraint.setUsesPeriodicBoundaryConditions(True)
+            #else:
+            #    plane_constraint.setUsesPeriodicBoundaryConditions(False)
             plane_constraint.addGlobalParameter('kp', 0.001)
             for i in self.atom_list.index:
                 plane_constraint.addParticle(i, [])
@@ -820,7 +853,10 @@ class CoarseActin:
             print('Bundle Constraint added')
             bundle_constraint = openmm.CustomCentroidBondForce(2, 'kp_bundle*(distance(g1,g2)^2-(x1-x2)^2)')
             bundle_constraint.addGlobalParameter('kp_bundle', 0.01)
-            bundle_constraint.setUsesPeriodicBoundaryConditions(True)
+            if self.periodic_box is not None:
+                bundle_constraint.setUsesPeriodicBoundaryConditions(True)
+            else:
+                bundle_constraint.setUsesPeriodicBoundaryConditions(False)
             cc = 0
             for c, chain in self.atom_list.groupby('chain_index'):
                 if 'ACT' in chain.residue_name.unique():
@@ -840,7 +876,10 @@ class CoarseActin:
             print('Bundled constrain not added')
             bundle_constraint = openmm.CustomCentroidBondForce(2, '0*kp_bundle*(distance(g1,g2)^2-(x1-x2)^2)')
             bundle_constraint.addGlobalParameter('kp_bundle', 0.01)
-            bundle_constraint.setUsesPeriodicBoundaryConditions(True)
+            if self.periodic_box is not None:
+                bundle_constraint.setUsesPeriodicBoundaryConditions(True)
+            else:
+                bundle_constraint.setUsesPeriodicBoundaryConditions(False)
             cc = 0
             for c, chain in self.atom_list.groupby('chain_index'):
                 if 'ACT' in chain.residue_name.unique():
