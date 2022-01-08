@@ -1,9 +1,11 @@
 import pandas as pd
 from ..Scene import *
 import string
+import os
 
+__location__ = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
 #Parse coordinate file
-coordinates = pd.read_csv('coarseactin/data/coordinates.csv', index_col='id')
+coordinates = pd.read_csv(f'{__location__}/../data/coordinates.csv', index_col='id')
 actin_template = Scene(coordinates)
 
 #Actin monomer variants
