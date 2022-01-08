@@ -172,11 +172,11 @@ class Scene(pandas.DataFrame):
     @classmethod
     def from_cif(cls, file, **kwargs):
         _cif_pdb_rename = {'id': 'serial',
-                           'auth_atom_id': 'name',
+                           'label_atom_id': 'name',
                            'label_alt_id': 'altLoc',
-                           'auth_comp_id': 'resName',
-                           'auth_asym_id': 'chainID',
-                           'auth_seq_id': 'resSeq',
+                           'label_comp_id': 'resName',
+                           'label_asym_id': 'chainID',
+                           'label_seq_id': 'resSeq',
                            'pdbx_PDB_ins_code': 'iCode',
                            'Cartn_x': 'x',
                            'Cartn_y': 'y',
@@ -186,6 +186,7 @@ class Scene(pandas.DataFrame):
                            'type_symbol': 'element',
                            'pdbx_formal_charge': 'charge',
                            'pdbx_PDB_model_num': 'model'}
+
         data = []
         with open(file) as f:
             reader = utils.PdbxReader(f)
