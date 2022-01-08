@@ -209,8 +209,11 @@ if __name__ == '__main__':
     full_model = coarseactin.Scene(full_model.sort_values(['chainID', 'resSeq', 'name']))
     full_model_actin = coarseactin.Scene(full_model[full_model['resName'].isin(['ACT','ACD'])])
     full_model_abps = coarseactin.Scene(full_model[~full_model['resName'].isin(['ACT', 'ACD'])])
-    full_model_abps['chainID']='A'
-    full_model = coarseactin.Scene.concatenate([full_model_actin,full_model_abps])
+    full_model_abps['chainID'] = 'A'
+    resids = full_model_abps['chain_resid'].unique()
+    resids_rename = full_model_abps['chain_resid'].replace({a: b for a, b in zip(resids, range(len(resids)))})
+    full_model_abps['resSeq'] = full_model_abps['chain_resid'].replace(resids_rename)
+    full_model = coarseactin.Scene.concatenate([full_model_actin, full_model_abps])
 
 
     full_model.write_cif('full_model.cif', verbose=True)
@@ -223,10 +226,54 @@ if __name__ == '__main__':
     sys.path.insert(0,'.')
     import openmm
     import openmm.app
-    #from simtk.unit import *
+    import simtk.unit as u
     import time
     from sys import stdout
 
     time.ctime()
+
+    # Create system
     platform = openmm.Platform.getPlatformByName(simulation_platform)
     s = coarseactin.CoarseActin.from_topology('full_model.cif',)
+    s.setForces(BundleConstraint=aligned, PlaneConstraint=system2D, CaMKII_Force=sjob['CaMKII_Force'])
+    top = openmm.app.PDBxFile('full_model.cif')
+    coord = openmm.app.PDBxFile('full_model.cif')
+
+    # Set up simulation
+    temperature = sjob["temperature"] * u.kelvin
+    integrator = openmm.LangevinIntegrator(temperature, .0001 / u.picosecond, 1 * u.picoseconds)
+    simulation = openmm.app.Simulation(top.topology, s.system, integrator, platform)
+    simulation.context.setPositions(coord.positions)
+
+    # Modify parameters
+    simulation.context.setParameter("g_eps", sjob["epsilon"])
+
+    frequency = sjob["frequency"]
+    # Add reporters
+    simulation.reporters.append(openmm.app.DCDReporter(f'{Sname}.dcd', frequency), )
+    simulation.reporters.append(
+        openmm.app.StateDataReporter(stdout, frequency, step=True, time=True, potentialEnergy=True, temperature=True,
+                                     separator='\t', ))
+    simulation.reporters.append(
+        openmm.app.StateDataReporter(f'{Sname}.log', frequency, step=True, time=True, totalEnergy=True,
+                                     kineticEnergy=True, potentialEnergy=True, temperature=True))
+
+    # Print initial energy
+    state = simulation.context.getState(getEnergy=True)
+    energy = state.getPotentialEnergy().value_in_unit(u.kilojoule_per_mole)
+    print(f'Initial energy: {energy} KJ/mol')
+
+    # Run
+    simulation.minimizeEnergy()
+    simulation.context.setVelocitiesToTemperature(temperature * u.kelvin)
+    time0 = time.ctime()
+    time_0 = time.time()
+    # simulation.step(100000)
+
+    # Turn off nematic parameter
+    # simulation.context.setParameter('kp_bundle',0)
+    simulation.runForClockTime(sjob["run_time"])
+
+    # Save checkpoint
+    chk = f'{Sname}.chk'
+    simulation.saveCheckpoint(chk)

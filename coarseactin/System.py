@@ -15,12 +15,13 @@ import sklearn.decomposition
 import configparser
 import prody
 import scipy.spatial.distance as sdist
+import os
 from . import utils
 
+
 __author__ = 'Carlos Bueno'
-__version__ = '0.2'
-__location__ = openmm.os.path.realpath(
-    openmm.os.path.join(openmm.os.getcwd(), openmm.os.path.dirname(__file__)))
+__version__ = '0.3'
+__location__ = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
 _ef = 1 * unit.kilocalorie / unit.kilojoule  # energy scaling factor
 _df = 1 * unit.angstrom / unit.nanometer  # distance scaling factor
 _af = 1 * unit.degree / unit.radian  # angle scaling factor
@@ -187,7 +188,7 @@ class SystemData:
         pdb_atoms['altLoc'] = ''
         # pdb_atoms['resName']    = self.atoms['molecule_name'].replace({'actin':'ACT','camkii':'CAM'})
         pdb_atoms['resName'] = self.atoms['resName']
-        pdb_atoms['chainID'] = self.atoms['molecule'].replace(cc_d)
+        pdb_atoms['chainID'] = self.atoms['chainID']
         # pdb_atoms['resSeq']     = 0
         pdb_atoms['iCode'] = ''
         # pdb_atoms['x']          =
@@ -536,9 +537,9 @@ class CoarseActin:
 
         # Actin binding sites parameters
 
-        w1 = np.array(virtual_sites_definition.loc[[('Binding-Qian2', 'A5')], ['w12', 'w13', 'wcross']].squeeze())
-        w2 = np.array(virtual_sites_definition.loc[[('Binding-Qian2', 'A6')], ['w12', 'w13', 'wcross']].squeeze())
-        w3 = np.array(virtual_sites_definition.loc[[('Binding-Qian2', 'A7')], ['w12', 'w13', 'wcross']].squeeze())
+        w1 = np.array(virtual_sites_definition.loc[[('Voth-Qian2020', 'A5')], ['w12', 'w13', 'wcross']].squeeze())
+        w2 = np.array(virtual_sites_definition.loc[[('Voth-Qian2020', 'A6')], ['w12', 'w13', 'wcross']].squeeze())
+        w3 = np.array(virtual_sites_definition.loc[[('Voth-Qian2020', 'A7')], ['w12', 'w13', 'wcross']].squeeze())
 
         # CAMKII virtual sites
         cw1 = np.array(virtual_sites_definition.loc[[('CaMKII', 'C1')], ['w12', 'w13', 'wcross']].squeeze())
@@ -657,7 +658,7 @@ class CoarseActin:
         """ Removes all forces from the system """
         [self.system.removeForce(0) for i, f in enumerate(self.system.getForces())]
 
-    def setForces(self, PlaneConstraint=False, gaussian=True, BundleConstraint=False):
+    def setForces(self, PlaneConstraint=False, CaMKII_Force='multigaussian', BundleConstraint=False):
         """ Adds the forces to the system """
         self.clearForces()
         # Harmonic Bonds
@@ -686,11 +687,11 @@ class CoarseActin:
         for i, r in self.repulsion_definition.iterrows():
             # print(r)
             # print(r['force'].format(i))
-            rf = openmm.CustomNonbondedForce('epsilon{0}*((sigma{0}/r)^12-2*(sigma{0}/r)^6)'.format(i))
+            rf = openmm.CustomNonbondedForce('(epsilon{0}*((sigma{0}/r)^12-2*(sigma{0}/r)^6)+epsilon{0})*step(sigma{0}-r)'.format(i))
             rf.setNonbondedMethod(rf.CutoffPeriodic)
             rf.addGlobalParameter('epsilon{0}'.format(i), r['epsilon'])
             rf.addGlobalParameter('sigma{0}'.format(i), r['sigma'])
-            rf.setCutoffDistance(r['sigma'])
+            rf.setCutoffDistance(10)
             rf.setUseLongRangeCorrection(False)
             for _, a in self.atom_list.iterrows():
                 rf.addParticle()
@@ -716,14 +717,14 @@ class CoarseActin:
         Cc = self.atom_list[self.atom_list['atom_name'] == 'Cc'].index
         comb = [(0, 6), (1, 7), (2, 8), (3, 9), (4, 10), (5, 11)]
 
-        if gaussian:
+        if CaMKII_Force=='multigaussian':
             for i, j in comb:
                 gaussian = openmm.CustomHbondForce("-g_eps*g1;"
-                                                   "g1=(exp(-dd/w1)+exp(-dd/w2))/2;"
-                                                   "dd=(dist1^2+dist2^2+dist3^2)/3;"
-                                                   "dist1= distance(a1,d1);"
-                                                   "dist2= min(distance(a2,d2),distance(a2,d3));"
-                                                   "dist3= min(distance(a3,d2),distance(a3,d3));")
+                                                         "g1=(exp(-dd/w1)+exp(-dd/w2))/2;"
+                                                         "dd=(dist1^2+dist2^2+dist3^2)/3;"
+                                                         "dist1= distance(a1,d1);"
+                                                         "dist2= min(distance(a2,d2),distance(a2,d3));"
+                                                         "dist3= min(distance(a3,d2),distance(a3,d3));")
 
                 gaussian.setNonbondedMethod(gaussian.CutoffPeriodic)
                 gaussian.addGlobalParameter('g_eps', 100)  # Energy minimum
@@ -744,17 +745,16 @@ class CoarseActin:
                     gaussian.addDonor(d1, d2, d3)
 
                 self.system.addForce(gaussian)
-        else:
+        elif CaMKII_Force=='doublegaussian':
             for i, j in comb:
                 gaussian = openmm.CustomHbondForce("-g_eps*g1;"
-                                                   "g1=(exp(-dd/w1)+exp(-dd/w2))/2;"
-                                                   "dd=(dist1^2+dist2^2+dist3^2)/3;"
-                                                   "dist1= distance(a1,d1);"
-                                                   "dist2= min(distance(a2,d2),distance(a2,d3));"
-                                                   "dist3= min(distance(a3,d2),distance(a3,d3));")
+                                                         "g1=(exp(-dd/w1)+exp(-dd/w2))/2;"
+                                                         "dd=(dist2^2+dist3^2)/2;"
+                                                         "dist2= min(distance(a2,d2),distance(a2,d3));"
+                                                         "dist3= min(distance(a3,d2),distance(a3,d3));")
 
                 gaussian.setNonbondedMethod(gaussian.CutoffPeriodic)
-                gaussian.addGlobalParameter('g_eps', 50)  # Energy minimum
+                gaussian.addGlobalParameter('g_eps', 100)  # Energy minimum
                 gaussian.addGlobalParameter('w1', 5.0)  # well1 width
                 gaussian.addGlobalParameter('w2', 0.5)  # well2 width
                 gaussian.setCutoffDistance(12)
@@ -772,6 +772,32 @@ class CoarseActin:
                     gaussian.addDonor(d1, d2, d3)
 
                 self.system.addForce(gaussian)
+        if CaMKII_Force=='singlegaussian':
+            gaussian = openmm.CustomHbondForce("-g_eps*g1;"
+                                                     "g1=(exp(-dd/w1)+exp(-dd/w2))/2;"
+                                                     "dd= distance(a1,d1);")
+
+            gaussian.setNonbondedMethod(gaussian.CutoffPeriodic)
+            gaussian.addGlobalParameter('g_eps', 100)  # Energy minimum
+            gaussian.addGlobalParameter('w1', 5.0)  # well1 width
+            gaussian.addGlobalParameter('w2', 0.5)  # well2 width
+            gaussian.setCutoffDistance(12)
+
+            # Aceptors
+            A1 = self.atom_list[self.atom_list['atom_name'] == 'A5'].index
+            A2 = self.atom_list[self.atom_list['atom_name'] == 'A6'].index
+            A3 = self.atom_list[self.atom_list['atom_name'] == 'A7'].index
+            assert len(A1) == len(A2) == len(A3)
+            for a1, a2, a3 in zip(A1, A2, A3):
+                gaussian.addAcceptor(a1, -1, -1)
+
+            # Donors
+            for d1 in Cc:
+                gaussian.addDonor(d1, -1, -1)
+
+            self.system.addForce(gaussian)
+        
+
 
         if PlaneConstraint:
             print(self.periodic_box)
