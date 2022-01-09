@@ -1,3 +1,18 @@
+#!/home/cab22/miniconda3/bin/python
+
+#SBATCH --account=commons
+#SBATCH --export=All
+#SBATCH --partition=commons
+#SBATCH --time=24:00:00
+#SBATCH --ntasks=1
+#SBATCH --threads-per-core=1
+#SBATCH --cpus-per-task=2
+#SBATCH --gres=gpu:1
+#SBATCH --time=24:00:00
+#SBATCH --export=ALL
+#SBATCH --array=0-15
+#SBATCH --mem=16G
+
 import sys
 import coarseactin
 import pandas
@@ -77,8 +92,8 @@ if __name__ == '__main__':
                   "frequency": [1000],
                   "run_time": [20],
                   "CaMKII_Force": ['multigaussian'],
-                  "simulation_platform": ["CUDA"]}
-    test_parameters = {"simulation_platform": "CUDA",
+                  "simulation_platform": ["OpenCL"]}
+    test_parameters = {"simulation_platform": "CPU",
                        "frequency": 1000,
                        "run_time": 2,
                        "CaMKII_Force": 'multigaussian'
