@@ -195,7 +195,7 @@ if __name__ == '__main__':
     i = sel.index
     d = sdist.pdist(sel[['x', 'y', 'z']])
     d = pandas.Series(d, itertools.combinations(i, 2))
-    sel2 = sel.loc[list(set([b for a, b in d[d < 1E5].index]))]
+    sel2 = sel.loc[list(set([b for a, b in d[d < 35].index]))]
     # print(len(sel2))
     full_model.loc[:, 'chain_resid'] = full_model[['chainID', 'resSeq', ]].apply(lambda x: ''.join([str(a) for a in x]),
                                                                                  axis=1)
