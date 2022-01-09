@@ -481,7 +481,7 @@ class CoarseActin:
         self.atom_list = self.parseTop()
         self.BuildVirtualSites()
         self.ComputeTopology()
-        self.setForces(PlaneConstraint=PlaneConstraint)
+        #self.setForces(PlaneConstraint=PlaneConstraint)
         return self
         # Parse topology data
 
