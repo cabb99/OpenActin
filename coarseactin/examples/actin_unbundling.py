@@ -11,7 +11,8 @@ def create_actin(length=100,
                  rotation=np.array([[1., 0., 0.],
                                     [0., 1., 0.],
                                     [0., 0., 1.]]),
-                 translation=np.array([5000, 5000, 5000])):
+                 translation=np.array([5000, 5000, 5000]),
+                 abp=None):
     q = np.array([[np.cos(twist), -np.sin(twist), 0, 0],
                   [np.sin(twist), np.cos(twist), 0, 0],
                   [0, 0, 1, shift],
@@ -21,7 +22,12 @@ def create_actin(length=100,
 
     bound_actin_template = pandas.read_csv("coarseactin/data/CaMKII_bound_with_actin.csv", index_col=0)
 
-    # Create the points
+    if abp is None:
+        bound_actin_template = bound_actin_template[bound_actin_template['resName'].isin(['ACT'])]
+    else:
+        bound_actin_template = bound_actin_template[bound_actin_template['resName'].isin(['ACT', abp])]
+
+    # Create the helix
     point = bound_actin_template[['x', 'y', 'z']]
     points = []
     for i in range(length):
@@ -41,28 +47,9 @@ def create_actin(length=100,
     model = model[~((model['resSeq'] > length - 1) & (model['name'].isin(
         ['A5', 'A6', 'A7'] + ['Cc'] + [f'C{i + 1:02}' for i in range(12)] + [f'Cx{i + 1}' for i in range(3)])))]
 
-    # Remove all CaMKII except resid 50
-    # model=model[~((model['resid']!=50) & (model['resName'].isin(['CAM'])))]
-
     model.loc[model[model['resSeq'] == model['resSeq'].max()].index, 'resName'] = 'ACD'
     model.loc[model[model['resSeq'] == model['resSeq'].min()].index, 'resName'] = 'ACD'
-    # for chain_name in string.ascii_uppercase + string.ascii_lowercase:
-    # print(chain_name)
-    #    if chain_name in full_model['chainID'].values:
-    #        model.loc[model['resName'].isin(['ACT', 'ACD']), 'chainID'] = chain_name
-    #        continue
-    #    model.loc[model['resName'].isin(['ACT', 'ACD']), 'chainID'] = chain_name
-    #    break
 
-    # for chain_name in string.ascii_uppercase + string.ascii_lowercase:
-    # print(chain_name,'A' in model['chainID'])
-    #    if chain_name in full_model['chainID'].values or chain_name in model['chainID'].values:
-    #        model.loc[model['resName'].isin(['CAM']), 'chainID'] = chain_name
-    #        continue
-    #    model.loc[model['resName'].isin(['CAM']), 'chainID'] = chain_name
-    #    break
-
-    # model["name"] = [j for i in range(1000) for j in ['A1', 'A2', 'A3', 'A4']]
 
     # Center the model
     model[['x', 'y', 'z']] -= model[['x', 'y', 'z']].mean()
@@ -70,8 +57,7 @@ def create_actin(length=100,
     # Move the model
     model[['x', 'y', 'z']] = np.dot(model[['x', 'y', 'z']], rotation) + translation
 
-    # full_model = pandas.concat([full_model, model])
-    # full_model.index = range(len(full_model))
+
     return model
 
 
@@ -82,16 +68,16 @@ if __name__ == '__main__':
 
     parameters = {"epsilon": [100],
                   "aligned": [False],
-                  "actinLen": [500],
-                  "layers": [3],
-                  #            "repetition":range(3),
-                  "disorder": [.5, .75],
+                  "actinLen": [25, 50, 100, 200, 400],
+                  "layers": [2, 3, 4],
+                  "repetition": range(3),
+                  "disorder": [0],
                   "temperature": [300],
                   "system2D": [False],
                   "frequency": [1000],
                   "run_time": [20],
-                  "CaMKII_Force": ['multigaussian', 'doublegaussian', 'singlegaussian'],
-                  "simulation_platform": ["OpenCL"]}
+                  "CaMKII_Force": ['multigaussian'],
+                  "simulation_platform": ["CUDA"]}
     test_parameters = {"simulation_platform": "CUDA",
                        "frequency": 1000,
                        "run_time": 2,
@@ -116,7 +102,7 @@ if __name__ == '__main__':
     aligned = sjob["aligned"]
     system2D = sjob["system2D"]
     actinLen = sjob["actinLen"]
-    Sname = sjob.name
+    Sname = f'Simulations_January2022/2022_01_08_OnlyActin2/{sjob.name}'
     simulation_platform = sjob["simulation_platform"]
 
     ###################
@@ -137,8 +123,7 @@ if __name__ == '__main__':
         d = 59.499 * 2
 
     for c in coords:
-        height = (random.random() - 0.5) * 39 * 28.21600347 * sjob["disorder"]
-
+        height = (random.random() - 0.5) * sjob["actinLen"] * 28.21600347 * sjob["disorder"]
         t = np.random.random()*np.pi*2
         rotation = np.array([[np.cos(t), -np.sin(t), 0.],
                              [np.sin(t), np.cos(t), 0.],
@@ -147,31 +132,18 @@ if __name__ == '__main__':
         full_model += [create_actin(length=sjob["actinLen"],
                                     translation=np.array([5000 + d * c[0], 5000 + d * c[1], 5000 + height]),
                                     rotation=rotation)]
-        #Add a random rotation around the z axis
-
-
 
     print('Concatenate chains')
-    # name_generator = coarseactin.chain_name_generator()
-    # chain_names = [next(name_generator) for _ in range(len(full_model))]
-    # name_generator.close()
-    # chainID = [c for a, b in zip(chain_names, full_model) for c in [a] * len(b)]
-    # model = pandas.concat(full_model)
-    # model['chainID'] = chainID
-    # model.index = range(len(model))
-    # full_model = coarseactin.Scene(model)
-    # full_model.write_cif('full_model_step1.cif', verbose=True)
     full_model = coarseactin.Scene.concatenate(full_model)
-    full_model.write_cif('full_model_step1.cif', verbose=True)
 
     # Remove the CaMKII that are not overlapping
     print('Removing Single CaMKII')
     sel = full_model[full_model['name'] == 'Cc']
-    i = sel.index
+
     print('Calculating distance')
     d = sdist.pdist(sel[['x', 'y', 'z']])
     print('Making selections')
-    d = pandas.Series(d, itertools.combinations(i, 2))
+    d = pandas.Series(d, itertools.combinations(sel.index, 2))
     close_abps=list(set([a for a, b in d[d < 35].index]))
     sel2 = sel.loc[close_abps]
     print(len(sel2))
@@ -187,32 +159,22 @@ if __name__ == '__main__':
     print(len(full_model))
 
     full_model = coarseactin.Scene(full_model.sort_values(['chainID', 'resSeq', 'name']))
-    full_model.write_cif('full_model_step2.cif', verbose=True)
 
     # Remove the CaMKII that are colliding
     print('Removing Collisions')
     sel = full_model[full_model['name'] == 'Cc']
-    i = sel.index
     d = sdist.pdist(sel[['x', 'y', 'z']])
-    d = pandas.Series(d, itertools.combinations(i, 2))
+    d = pandas.Series(d, itertools.combinations(sel.index, 2))
     sel2 = sel.loc[list(set([b for a, b in d[d < 35].index]))]
-    # print(len(sel2))
+
     full_model.loc[:, 'chain_resid'] = full_model[['chainID', 'resSeq', ]].apply(lambda x: ''.join([str(a) for a in x]),
                                                                                  axis=1)
-    # print(len(full_model[full_model['resName'].isin(['ACT','ACD'])]))
-    # print(len(full_model[full_model['chain_resid'].isin(sel2[['chainID','resid',]].apply(lambda x:''.join([str(a) for a in x]),axis=1))]))
-
     full_model = full_model[full_model['resName'].isin(['ACT', 'ACD']) | ~full_model['chain_resid'].isin(
         sel2[['chainID', 'resSeq', ]].apply(lambda x: ''.join([str(a) for a in x]), axis=1))]
 
     full_model['mass'] = 1
     full_model['molecule'] = 1
     full_model['q'] = 0
-    # ss = SystemData(full_model.sort_values(['chainID', 'resid', 'name']))
-    # ss.write_data()
-    # ss.write_pdb(f'{Sname}.pdb')
-    # ss.write_gro(f'{Sname}.gro')
-    # ss.print_coeff()
 
     full_model = coarseactin.Scene(full_model.sort_values(['chainID', 'resSeq', 'name']))
     full_model_actin = coarseactin.Scene(full_model[full_model['resName'].isin(['ACT','ACD'])])
@@ -224,8 +186,7 @@ if __name__ == '__main__':
     full_model = coarseactin.Scene.concatenate([full_model_actin, full_model_abps])
 
 
-    full_model.write_cif('full_model.cif', verbose=True)
-    full_model.write_gro('full_model.gro', verbose=True)
+    full_model.write_cif(f'{Sname}.cif', verbose=True)
 
     ##############
     # Simulation #
@@ -242,11 +203,11 @@ if __name__ == '__main__':
 
     # Create system
     platform = openmm.Platform.getPlatformByName(simulation_platform)
-    s = coarseactin.CoarseActin.from_topology('full_model.cif',)
+    s = coarseactin.CoarseActin.from_topology(f'{Sname}.cif',)
     print(s.system.getDefaultPeriodicBoxVectors())
     s.setForces(BundleConstraint=aligned, PlaneConstraint=system2D, CaMKII_Force=sjob['CaMKII_Force'])
-    top = openmm.app.PDBxFile('full_model.cif')
-    coord = openmm.app.PDBxFile('full_model.cif')
+    top = openmm.app.PDBxFile(f'{Sname}.cif')
+    coord = openmm.app.PDBxFile(f'{Sname}.cif')
 
     # Set up simulation
     temperature = sjob["temperature"] * u.kelvin
