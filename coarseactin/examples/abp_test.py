@@ -1,17 +1,17 @@
 #!/home/cab22/miniconda3/bin/python
 
-#SBATCH --account=commons
-#SBATCH --export=All
-#SBATCH --partition=commons
-#SBATCH --time=24:00:00
-#SBATCH --ntasks=1
-#SBATCH --threads-per-core=1
-#SBATCH --cpus-per-task=2
-#SBATCH --gres=gpu:1
-#SBATCH --time=24:00:00
-#SBATCH --export=ALL
-#SBATCH --array=0-15
-#SBATCH --mem=16G
+# SBATCH --account=commons
+# SBATCH --export=All
+# SBATCH --partition=commons
+# SBATCH --time=24:00:00
+# SBATCH --ntasks=1
+# SBATCH --threads-per-core=1
+# SBATCH --cpus-per-task=2
+# SBATCH --gres=gpu:1
+# SBATCH --time=24:00:00
+# SBATCH --export=ALL
+# SBATCH --array=0-15
+# SBATCH --mem=16G
 
 import sys
 import coarseactin
@@ -65,13 +65,11 @@ def create_actin(length=100,
     model.loc[model[model['resSeq'] == model['resSeq'].max()].index, 'resName'] = 'ACD'
     model.loc[model[model['resSeq'] == model['resSeq'].min()].index, 'resName'] = 'ACD'
 
-
     # Center the model
     model[['x', 'y', 'z']] -= model[['x', 'y', 'z']].mean()
 
     # Move the model
     model[['x', 'y', 'z']] = np.dot(model[['x', 'y', 'z']], rotation) + translation
-
 
     return model
 
@@ -104,7 +102,7 @@ if __name__ == '__main__':
             job_id = int(sys.argv[1])
         except TypeError:
             pass
-    sjob = coarseactin.SlurmJobArray("ActinBundle", parameters, test_parameters, job_id)
+    sjob = coarseactin.SlurmJobArray("ABP", parameters, test_parameters, job_id)
     sjob.print_parameters()
     sjob.print_slurm_variables()
     sjob.write_csv()
@@ -126,93 +124,42 @@ if __name__ == '__main__':
     # Set the points in the actin network
     import random
 
-    full_model = []
-
-#    if sjob["layers"] == 1:
-#        hg = coarseactin.HexGrid(2)
-#        coords = hg.coords()[:2]
-#        d = 59.499 * 2
-#    else:
-#        hg = coarseactin.HexGrid(sjob["layers"])
-#        coords = hg.coords()
-#        d = 59.499 * 2
-
-    #Make a bundle of 100nm
-    hg = coarseactin.HexGrid(20)
-    coords = hg.coords()
-    d = 59.499 * 2
-    coords = coords[(d * (coords ** 2).sum(axis=1) ** .5) < 500]
-
-    for c in coords:
-        height = (random.random() - 0.5) * sjob["actinLen"] * 28.21600347 * sjob["disorder"]
-        t = np.random.random()*np.pi*2
+    n = 6
+    angles = np.linspace(0, np.pi * 2, n + 1)
+    model = []
+    for i in range(n):
+        t = angles[i]
         rotation = np.array([[np.cos(t), -np.sin(t), 0.],
                              [np.sin(t), np.cos(t), 0.],
                              [0., 0., 1.]])
-        print(c[0], c[1], height)
-        full_model += [create_actin(length=sjob["actinLen"],
-                                    translation=np.array([5000 + d * c[0], 5000 + d * c[1], 5000 + height]),
-                                    rotation=rotation,abp='CAM')]
+        s = create_actin(13, abp='CAM', rotation=rotation)
+        s = s[(s['resName'] != 'CAM') | (s['resSeq'] == 7)]
+        s = coarseactin.Scene(s)
+        center = s[s['name'] == 'Cc'][['x', 'y', 'z']].values
+        s = s.translate(-center)
+        model += [s]
 
-    print('Concatenate chains')
-    full_model = coarseactin.Scene.concatenate(full_model)
+    model = coarseactin.Scene.concatenate(model)
+    model = coarseactin.Scene(model[(model['resName'] != 'CAM') | (model['chainID'] == 'A')])
 
-    # Remove the CaMKII that are not overlapping
-    print('Removing Single CaMKII')
-    sel = full_model[full_model['name'] == 'Cc']
-    print('Calculating distance')
-    d = sdist.pdist(sel[['x', 'y', 'z']])
-    print('Making selections')
-    d = pandas.Series(d, itertools.combinations(sel.index, 2))
-    close_abps=list(set([a for a, b in d[d < 35].index]))
-    sel2 = sel.loc[close_abps]
-    print(len(sel2))
-    full_model.loc[:, 'chain_resid'] = full_model[['chainID', 'resSeq', ]].apply(lambda x: ''.join([str(a) for a in x]),
-                                                                                 axis=1)
-    print(len(full_model[full_model['resName'].isin(['ACT', 'ACD'])]))
-    print(len(full_model[full_model['chain_resid'].isin(
-        sel2[['chainID', 'resSeq', ]].apply(lambda x: ''.join([str(a) for a in x]), axis=1))]))
-
-    full_model = full_model[full_model['resName'].isin(['ACT', 'ACD']) |
-                            full_model['chain_resid'].isin(
-                                sel2[['chainID', 'resSeq', ]].apply(lambda x: ''.join([str(a) for a in x]), axis=1))]
-    print(len(full_model))
-
-    full_model = coarseactin.Scene(full_model.sort_values(['chainID', 'resSeq', 'name']))
-
-    # Remove the CaMKII that are colliding
-    print('Removing Collisions')
-    sel = full_model[full_model['name'] == 'Cc']
-    d = sdist.pdist(sel[['x', 'y', 'z']])
-    d = pandas.Series(d, itertools.combinations(sel.index, 2))
-    sel2 = sel.loc[list(set([b for a, b in d[d < 35].index]))]
-
-    full_model.loc[:, 'chain_resid'] = full_model[['chainID', 'resSeq', ]].apply(lambda x: ''.join([str(a) for a in x]),
-                                                                                 axis=1)
-    full_model = full_model[full_model['resName'].isin(['ACT', 'ACD']) | ~full_model['chain_resid'].isin(
-        sel2[['chainID', 'resSeq', ]].apply(lambda x: ''.join([str(a) for a in x]), axis=1))]
-
-    full_model['mass'] = 1
-    full_model['molecule'] = 1
-    full_model['q'] = 0
-
-    full_model = coarseactin.Scene(full_model.sort_values(['chainID', 'resSeq', 'name']))
-    full_model_actin = coarseactin.Scene(full_model[full_model['resName'].isin(['ACT','ACD'])])
+    #Split and rejoin the model so that ABPs are on a different chain
+    full_model = coarseactin.Scene(model.sort_values(['chainID', 'resSeq', 'name']))
+    full_model_actin = coarseactin.Scene(full_model[full_model['resName'].isin(['ACT', 'ACD'])])
     full_model_abps = coarseactin.Scene(full_model[~full_model['resName'].isin(['ACT', 'ACD'])])
     full_model_abps['chainID'] = 'A'
+    full_model_abps.loc[:, 'chain_resid'] = full_model_abps[['chain_index', 'res_index']].astype(str).T.apply(lambda x: '_'.join([str(a) for a in x]))
     resids = full_model_abps['chain_resid'].unique()
     resids_rename = full_model_abps['chain_resid'].replace({a: b for a, b in zip(resids, range(len(resids)))})
     full_model_abps['resSeq'] = full_model_abps['chain_resid'].replace(resids_rename)
     full_model = coarseactin.Scene.concatenate([full_model_actin, full_model_abps])
-
-
     full_model.write_cif(f'{Sname}.cif', verbose=True)
 
     ##############
     # Simulation #
     ##############
     import sys
-    sys.path.insert(0,'.')
+
+    sys.path.insert(0, '.')
     import openmm
     import openmm.app
     import simtk.unit as u
@@ -223,7 +170,7 @@ if __name__ == '__main__':
 
     # Create system
     platform = openmm.Platform.getPlatformByName(simulation_platform)
-    s = coarseactin.CoarseActin.from_topology(f'{Sname}.cif',)
+    s = coarseactin.CoarseActin.from_topology(f'{Sname}.cif', )
     print(s.system.getDefaultPeriodicBoxVectors())
     s.setForces(BundleConstraint=aligned, PlaneConstraint=system2D, CaMKII_Force=sjob['CaMKII_Force'])
     top = openmm.app.PDBxFile(f'{Sname}.cif')
@@ -231,7 +178,9 @@ if __name__ == '__main__':
 
     # Set up simulation
     temperature = sjob["temperature"] * u.kelvin
+    # Using verlet integrator
     integrator = openmm.LangevinIntegrator(temperature, .0001 / u.picosecond, 1 * u.picoseconds)
+    # integrator=openmm.VerletIntegrator(1*u.picoseconds)
     simulation = openmm.app.Simulation(top.topology, s.system, integrator, platform)
     simulation.context.setPositions(coord.positions)
 
@@ -242,11 +191,15 @@ if __name__ == '__main__':
     # Add reporters
     simulation.reporters.append(openmm.app.DCDReporter(f'{Sname}.dcd', frequency), )
     simulation.reporters.append(
-        openmm.app.StateDataReporter(stdout, frequency, step=True, time=True, potentialEnergy=True, temperature=True,
+        openmm.app.StateDataReporter(stdout, frequency, step=True, time=True, potentialEnergy=True,totalEnergy=True, temperature=True,
                                      separator='\t', ))
     simulation.reporters.append(
         openmm.app.StateDataReporter(f'{Sname}.log', frequency, step=True, time=True, totalEnergy=True,
                                      kineticEnergy=True, potentialEnergy=True, temperature=True))
+
+    #Change simulation parameters
+    simulation.context.setParameter("w1", 5)
+    simulation.context.setParameter("g_eps", 100)
 
     # Print initial energy
     state = simulation.context.getState(getEnergy=True)
