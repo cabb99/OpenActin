@@ -14,6 +14,9 @@
 # SBATCH --mem=16G
 
 import sys
+
+from pandas import DataFrame
+
 import coarseactin
 import pandas
 import numpy as np
@@ -59,8 +62,7 @@ def create_actin(length=100,
     model["element"] = [j for i in range(length) for j in bound_actin_template["element"]]
 
     # Remove two binding points
-    model = model[~((model['resSeq'] > length - 1) & (model['name'].isin(
-        ['A5', 'A6', 'A7'] + ['Cc'] + [f'C{i + 1:02}' for i in range(12)] + [f'Cx{i + 1}' for i in range(3)])))]
+    model = model[~(((model['resSeq'] > length-1) | (model['resSeq'] == 1)) & ~model['name'].isin(['A1', 'A2', 'A3', 'A4']))]
 
     model.loc[model[model['resSeq'] == model['resSeq'].max()].index, 'resName'] = 'ACD'
     model.loc[model[model['resSeq'] == model['resSeq'].min()].index, 'resName'] = 'ACD'
@@ -94,7 +96,7 @@ if __name__ == '__main__':
     test_parameters = {"simulation_platform": "CUDA",
                        "frequency": 1000,
                        "run_time": 8,
-                       "CaMKII_Force": 'multigaussian'
+                       "CaMKII_Force": 'abp'
                        }
     job_id = 0
     if len(sys.argv) > 1:
@@ -124,23 +126,25 @@ if __name__ == '__main__':
     # Set the points in the actin network
     import random
 
-    n = 6
+    n = 2
     angles = np.linspace(0, np.pi * 2, n + 1)
     model = []
+    abp = 'ABP'
     for i in range(n):
         t = angles[i]
         rotation = np.array([[np.cos(t), -np.sin(t), 0.],
                              [np.sin(t), np.cos(t), 0.],
                              [0., 0., 1.]])
-        s = create_actin(13, abp='CAM', rotation=rotation)
-        s = s[(s['resName'] != 'CAM') | (s['resSeq'] == 7)]
+        s = create_actin(13, abp=abp, rotation=rotation)
+        s = s[(s['resName'] != abp) | (s['resSeq'] == 7)]
         s = coarseactin.Scene(s)
-        center = s[s['name'] == 'Cc'][['x', 'y', 'z']].values
+        #center = s[s['name'].isin(['Cc', 'Cb'])][['x', 'y', 'z']].values
+        center = s[s['resName'] == abp][['x', 'y', 'z']].mean(axis=0).values
         s = s.translate(-center)
         model += [s]
 
     model = coarseactin.Scene.concatenate(model)
-    model = coarseactin.Scene(model[(model['resName'] != 'CAM') | (model['chainID'] == 'A')])
+    model = coarseactin.Scene(model[(model['resName'] != abp) | (model['chainID'] == 'A')])
 
     #Split and rejoin the model so that ABPs are on a different chain
     full_model = coarseactin.Scene(model.sort_values(['chainID', 'resSeq', 'name']))
@@ -205,13 +209,20 @@ if __name__ == '__main__':
     state = simulation.context.getState(getEnergy=True)
     energy = state.getPotentialEnergy().value_in_unit(u.kilojoule_per_mole)
     print(f'Initial energy: {energy} KJ/mol')
+    energies = {}
+    for force in s.system.getForces():
+        group = force.getForceGroup()
+        state = simulation.context.getState(getEnergy=True, groups=2 ** group)
+        energies[force] = state.getPotentialEnergy().value_in_unit(u.kilojoule_per_mole)
+    print(energies)
 
     # Run
     simulation.minimizeEnergy()
     simulation.context.setVelocitiesToTemperature(temperature * u.kelvin)
     time0 = time.ctime()
     time_0 = time.time()
-    # simulation.step(100000)
+    time.sleep(0.5)
+    #simulation.step(1000)
 
     # Turn off nematic parameter
     # simulation.context.setParameter('kp_bundle',0)

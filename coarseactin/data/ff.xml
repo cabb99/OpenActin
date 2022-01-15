@@ -10,6 +10,7 @@
     <Type name="Cx" class="D" element="Mg" mass="100000"/>#24000
     <Type name="Cc" class="D" element="Fe" mass="0"/>
     <Type name="Cm" class="D" element="C" mass="0"/>
+    <Type name="Cb" class="D" element="C" mass="30000"/>#24000
   </AtomTypes>
   <Residues>
     <Residue name="ACT">
@@ -20,6 +21,9 @@
       <Atom name="A5"  type="Av"/>
       <Atom name="A6"  type="Av"/>
       <Atom name="A7"  type="Av"/>
+      <Atom name="Aa"  type="Av"/>
+      <Atom name="Ab"  type="Av"/>
+      <Atom name="Ac"  type="Av"/>
     </Residue>
     <!-- Actin particles without binding sites -->
     <Residue name="ACD">
@@ -45,6 +49,21 @@
       <Atom name="C10" type="Cm"/>
       <Atom name="C11" type="Cm"/>
       <Atom name="C12" type="Cm"/>
+    </Residue>
+    <Residue name="FAS">
+      <Atom name="Cx1" type="Cx"/>
+      <Atom name="Cx2" type="Cx"/>
+      <Atom name="Cx3" type="Cx"/>
+      <Atom name="Cc"  type="Cc"/>
+      <Atom name="C01" type="Cm"/>
+      <Atom name="C04" type="Cm"/>
+      <Atom name="C07" type="Cm"/>
+      <Atom name="C10" type="Cm"/>
+    </Residue>
+    <Residue name="ABP">
+      <Atom name="Ca" type="Cb"/>
+      <Atom name="Cb" type="Cb"/>
+      <Atom name="Cd" type="Cb"/>
     </Residue>
   </Residues>
 </ForceField>

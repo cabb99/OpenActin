@@ -500,10 +500,9 @@ class CoarseActin:
         self.repulsion_definition = utils.parseConfigTable(config['Repulsion'])
         self.virtual_sites_definition = utils.parseConfigTable(config['Virtual sites'])
 
-        self.bond_definition = self.bond_definition[self.bond_definition.molecule.isin(['Actin-ADP', 'CaMKII'])]
-        self.angle_definition = self.angle_definition[self.angle_definition.molecule.isin(['Actin-ADP', 'CaMKII'])]
-        self.dihedral_definition = self.dihedral_definition[
-            self.dihedral_definition.molecule.isin(['Actin-ADP', 'CaMKII'])]
+        self.bond_definition = self.bond_definition[~self.bond_definition.molecule.isin(['Actin-ATP'])]
+        self.angle_definition = self.angle_definition[~self.angle_definition.molecule.isin(['Actin-ATP'])]
+        self.dihedral_definition = self.dihedral_definition[~self.dihedral_definition.molecule.isin(['Actin-ATP'])]
         # self.virtual_sites_definition = self.virtual_sites_definition[self.virtual_sites_definition.molecule.isin(['Actin-ADP', 'CaMKII','Binding-Qian2'])]
 
     def __init__(self):
@@ -541,9 +540,12 @@ class CoarseActin:
 
         # Actin binding sites parameters
 
-        w1 = np.array(virtual_sites_definition.loc[[('Voth-Qian2020', 'A5')], ['w12', 'w13', 'wcross']].squeeze())
-        w2 = np.array(virtual_sites_definition.loc[[('Voth-Qian2020', 'A6')], ['w12', 'w13', 'wcross']].squeeze())
-        w3 = np.array(virtual_sites_definition.loc[[('Voth-Qian2020', 'A7')], ['w12', 'w13', 'wcross']].squeeze())
+        w1 = np.array(virtual_sites_definition.loc[[('VothQianABP', 'A5')], ['w12', 'w13', 'wcross']].squeeze())
+        w2 = np.array(virtual_sites_definition.loc[[('VothQianABP', 'A6')], ['w12', 'w13', 'wcross']].squeeze())
+        w3 = np.array(virtual_sites_definition.loc[[('VothQianABP', 'A7')], ['w12', 'w13', 'wcross']].squeeze())
+        w4 = np.array(virtual_sites_definition.loc[[('VothQianABP', 'Aa')], ['w12', 'w13', 'wcross']].squeeze())
+        w5 = np.array(virtual_sites_definition.loc[[('VothQianABP', 'Ab')], ['w12', 'w13', 'wcross']].squeeze())
+        w6 = np.array(virtual_sites_definition.loc[[('VothQianABP', 'Ac')], ['w12', 'w13', 'wcross']].squeeze())
 
         # CAMKII virtual sites
         cw1 = np.array(virtual_sites_definition.loc[[('CaMKII', 'C1')], ['w12', 'w13', 'wcross']].squeeze())
@@ -562,10 +564,18 @@ class CoarseActin:
                 a5 = openmm.OutOfPlaneSite(ix['A2'], ix['A1'], ix['A3'], w1[0], w1[1], w1[2])
                 a6 = openmm.OutOfPlaneSite(ix['A2'], ix['A1'], ix['A3'], w2[0], w2[1], w2[2])
                 a7 = openmm.OutOfPlaneSite(ix['A2'], ix['A1'], ix['A3'], w3[0], w3[1], w3[2])
+                aa = openmm.OutOfPlaneSite(ix['A2'], ix['A1'], ix['A3'], w4[0], w4[1], w4[2])
+                ab = openmm.OutOfPlaneSite(ix['A2'], ix['A1'], ix['A3'], w5[0], w5[1], w5[2])
+                ac = openmm.OutOfPlaneSite(ix['A2'], ix['A1'], ix['A3'], w6[0], w6[1], w6[2])
                 # Set up virtual sites
                 self.system.setVirtualSite(ix['A5'], a5)
                 self.system.setVirtualSite(ix['A6'], a6)
                 self.system.setVirtualSite(ix['A7'], a7)
+                self.system.setVirtualSite(ix['Aa'], aa)
+                self.system.setVirtualSite(ix['Ab'], ab)
+                self.system.setVirtualSite(ix['Ac'], ac)
+
+
             if resname == 'CAM':
                 # Parent sites
                 c1 = ix['Cx1']
@@ -598,6 +608,23 @@ class CoarseActin:
                 self.system.setVirtualSite(ix['C10'], c10)
                 self.system.setVirtualSite(ix['C11'], c11)
                 self.system.setVirtualSite(ix['C12'], c12)
+                self.system.setVirtualSite(ix['Cc'], cc)
+            if resname == 'FAS':
+                # Parent sites
+                c1 = ix['Cx1']
+                c2 = ix['Cx2']
+                c3 = ix['Cx3']
+                # Virtual site positions
+                c01 = openmm.OutOfPlaneSite(c1, c2, c3, cw1[0], cw1[1], cw1[2])
+                c04 = openmm.OutOfPlaneSite(c2, c3, c1, cw2[0], cw2[1], cw2[2])
+                c07 = openmm.OutOfPlaneSite(c1, c2, c3, cw3[0], cw3[1], cw3[2])
+                c10 = openmm.OutOfPlaneSite(c2, c3, c1, cw4[0], cw4[1], cw4[2])
+                cc = openmm.ThreeParticleAverageSite(c1, c2, c3, 1 / 3., 1 / 3., 1 / 3.)
+                # Set up virtual positions
+                self.system.setVirtualSite(ix['C01'], c01)
+                self.system.setVirtualSite(ix['C04'], c04)
+                self.system.setVirtualSite(ix['C07'], c07)
+                self.system.setVirtualSite(ix['C10'], c10)
                 self.system.setVirtualSite(ix['Cc'], cc)
         self.atom_list['Virtual'] = [self.system.isVirtualSite(a) for a in range(len(self.atom_list))]
 
@@ -718,7 +745,7 @@ class CoarseActin:
             sel1 = self.atom_list[self.atom_list['atom_name'] == r['i']]
             sel2 = self.atom_list[self.atom_list['atom_name'] == r['j']]
             rf.addInteractionGroup(sel1.index, sel2.index)
-            rf.createExclusionsFromBonds(self.bonds[['i', 'j']].values.tolist(), 2)
+            rf.createExclusionsFromBonds(self.bonds[['i', 'j']].values.tolist(), 3)
             self.system.addForce(rf)
 
         # Donors
@@ -828,7 +855,42 @@ class CoarseActin:
                 gaussian.addDonor(d1, -1, -1)
 
             self.system.addForce(gaussian)
-        
+        elif CaMKII_Force == 'abp':
+            gaussian = openmm.CustomHbondForce("-g_eps*g1;"
+                                               "g1=(exp(-dd/w1)+exp(-dd/w2))/2;"
+                                               "dd=(dist1^2+dist2^2+dist3^2)/3;"
+                                               "dist1= distance(a1,d1);"
+                                               "dist2= distance(a2,d2);"
+                                               "dist3= distance(a3,d3);")
+
+            gaussian.setForceGroup(5)
+            if self.periodic_box is not None:
+                gaussian.setNonbondedMethod(gaussian.CutoffPeriodic)
+            else:
+                gaussian.setNonbondedMethod(gaussian.CutoffNonPeriodic)
+            gaussian.addGlobalParameter('g_eps', 100)  # Energy minimum
+            gaussian.addGlobalParameter('w1', 5.0)  # well1 width
+            gaussian.addGlobalParameter('w2', 0.5)  # well2 width
+            gaussian.setCutoffDistance(12)
+
+            # Aceptors
+            A1 = self.atom_list[self.atom_list['atom_name'] == 'Aa'].index
+            A2 = self.atom_list[self.atom_list['atom_name'] == 'Ab'].index
+            A3 = self.atom_list[self.atom_list['atom_name'] == 'Ac'].index
+            D1 = self.atom_list[self.atom_list['atom_name'] == 'Ca'].index
+            D2 = self.atom_list[self.atom_list['atom_name'] == 'Cb'].index
+            D3 = self.atom_list[self.atom_list['atom_name'] == 'Cd'].index
+
+            assert len(A1) == len(A2) == len(A3)
+            for a1, a2, a3 in zip(A1, A2, A3):
+                gaussian.addAcceptor(a1, a2, a3)
+
+            # Donors
+            assert len(D1) == len(D2) == len(D3)
+            for d1, d2, d3 in zip(D1, D2, D3):
+                gaussian.addDonor(d1, d2, d3)
+
+            self.system.addForce(gaussian)
 
 
         if PlaneConstraint:

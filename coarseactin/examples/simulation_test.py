@@ -17,7 +17,8 @@ import sys
 import coarseactin
 import pandas
 import numpy as np
-import scipy.spatial.distance as sdist
+#import scipy.spatial.distance as sdist
+from scipy.spatial import cKDTree
 import itertools
 
 
@@ -59,7 +60,7 @@ def create_actin(length=100,
     model["element"] = [j for i in range(length) for j in bound_actin_template["element"]]
 
     # Remove two binding points
-    model = model[~((model['resSeq'] > length - 1) & (model['name'].isin(
+    model = model[~((model['resSeq'] > length - 1) & (~model['name'].isin(
         ['A5', 'A6', 'A7'] + ['Cc'] + [f'C{i + 1:02}' for i in range(12)] + [f'Cx{i + 1}' for i in range(3)])))]
 
     model.loc[model[model['resSeq'] == model['resSeq'].max()].index, 'resName'] = 'ACD'
@@ -104,7 +105,7 @@ if __name__ == '__main__':
             job_id = int(sys.argv[1])
         except TypeError:
             pass
-    sjob = coarseactin.SlurmJobArray("ActinBundle", parameters, test_parameters, job_id)
+    sjob = coarseactin.SlurmJobArray("Unbundling_rebundling_w1_5", parameters, test_parameters, job_id)
     sjob.print_parameters()
     sjob.print_slurm_variables()
     sjob.write_csv()
@@ -161,10 +162,11 @@ if __name__ == '__main__':
     print('Removing Single CaMKII')
     sel = full_model[full_model['name'] == 'Cc']
     print('Calculating distance')
-    d = sdist.pdist(sel[['x', 'y', 'z']])
+    pairs = cKDTree(sel[['x', 'y', 'z']]).query_pairs(35)
+    #d = sdist.pdist(sel[['x', 'y', 'z']])
     print('Making selections')
-    d = pandas.Series(d, itertools.combinations(sel.index, 2))
-    close_abps=list(set([a for a, b in d[d < 35].index]))
+    #d = pandas.Series(d, itertools.combinations(sel.index, 2))
+    close_abps=list(set([sel.index[a] for a, b in pairs]))
     sel2 = sel.loc[close_abps]
     print(len(sel2))
     full_model.loc[:, 'chain_resid'] = full_model[['chainID', 'resSeq', ]].apply(lambda x: ''.join([str(a) for a in x]),
@@ -183,9 +185,10 @@ if __name__ == '__main__':
     # Remove the CaMKII that are colliding
     print('Removing Collisions')
     sel = full_model[full_model['name'] == 'Cc']
-    d = sdist.pdist(sel[['x', 'y', 'z']])
-    d = pandas.Series(d, itertools.combinations(sel.index, 2))
-    sel2 = sel.loc[list(set([b for a, b in d[d < 35].index]))]
+    #d = sdist.pdist(sel[['x', 'y', 'z']])
+    #d = pandas.Series(d, itertools.combinations(sel.index, 2))
+    pairs = cKDTree(sel[['x', 'y', 'z']]).query_pairs(35)
+    sel2 = sel.loc[list(set([sel.index[b] for a, b in pairs]))]
 
     full_model.loc[:, 'chain_resid'] = full_model[['chainID', 'resSeq', ]].apply(lambda x: ''.join([str(a) for a in x]),
                                                                                  axis=1)
@@ -258,11 +261,26 @@ if __name__ == '__main__':
     simulation.context.setVelocitiesToTemperature(temperature * u.kelvin)
     time0 = time.ctime()
     time_0 = time.time()
-    # simulation.step(100000)
+    print('Epsilon_values: np.logspace(2,1,1000) each 1000 steps (1 frames')
+    epsilons = np.logspace(2 ,1 ,200)
+    print(epsilons)
+    simulation.context.setParameter("w1", 5)
+    for eps in epsilons:
+        simulation.context.setParameter("g_eps", eps)
+        simulation.step(1000)
+
+    simulation.step(200000)
+
+    epsilons = np.logspace(1, 2, 200)
+    for eps in epsilons:
+        simulation.context.setParameter("g_eps", eps)
+        simulation.step(1000)
+
+    simulation.step(1000000)
 
     # Turn off nematic parameter
     # simulation.context.setParameter('kp_bundle',0)
-    simulation.runForClockTime(sjob["run_time"])
+    #simulation.runForClockTime(sjob["run_time"])
 
     # Save checkpoint
     chk = f'{Sname}.chk'
