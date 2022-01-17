@@ -1,17 +1,17 @@
 #!/home/cab22/miniconda3/bin/python
 
-# SBATCH --account=commons
-# SBATCH --export=All
-# SBATCH --partition=commons
-# SBATCH --time=24:00:00
-# SBATCH --ntasks=1
-# SBATCH --threads-per-core=1
-# SBATCH --cpus-per-task=2
-# SBATCH --gres=gpu:1
-# SBATCH --time=24:00:00
-# SBATCH --export=ALL
-# SBATCH --array=0-15
-# SBATCH --mem=16G
+#SBATCH --account=commons
+#SBATCH --output ./Simulations_nots/SingleABP/slurm-%A_%a.out
+#SBATCH --export=All
+#SBATCH --partition=commons
+#SBATCH --time=24:00:00
+#SBATCH --ntasks=1
+#SBATCH --threads-per-core=1
+#SBATCH --cpus-per-task=2
+#SBATCH --gres=gpu:1
+#SBATCH --export=ALL
+#SBATCH --array=0-192
+#SBATCH --mem=16G
 
 import sys
 
@@ -116,7 +116,7 @@ if __name__ == '__main__':
             job_id = int(sys.argv[1])
         except TypeError:
             pass
-    sjob = coarseactin.SlurmJobArray("SingleABP", parameters, test_parameters, job_id)
+    sjob = coarseactin.SlurmJobArray("Simulations_nots/SingleABP/SingleABP", parameters, test_parameters, job_id)
     sjob.print_parameters()
     sjob.print_slurm_variables()
     sjob.write_csv()
@@ -141,10 +141,11 @@ if __name__ == '__main__':
     ###################
     # Set the points in the actin network
     import random
-    n = 2
+    n = sjob["n"]
     angles = np.linspace(0, np.pi * 2, n + 1)
     model = []
     abp = sjob['abp']
+    center_resid=int(actinLen)+1
     for i in range(n):
         t = angles[i]
         rotation = np.array([[np.cos(t), -np.sin(t), 0.],
@@ -152,7 +153,7 @@ if __name__ == '__main__':
                              [0., 0., 1.]])
         s = create_actin(sjob['actinLen'], abp=abp, rotation=rotation)
         #Select only the ABP in the middle
-        s = s[(s['resName'] != abp) | (s['chainID'] == 8)]
+        s = s[(s['resName'] != abp) | (s['chainID'] == center_resid)]
         s = coarseactin.Scene(s)
         #center = s[s['name'].isin(['Cc', 'Cb'])][['x', 'y', 'z']].values
         center = s[s['resName'] == abp][['x', 'y', 'z']].mean(axis=0).values
@@ -247,7 +248,7 @@ if __name__ == '__main__':
 
     #Change simulation parameters
     simulation.context.setParameter("w1", 5)
-    simulation.context.setParameter("g_eps", 100)
+    simulation.context.setParameter("g_eps", sjob['epsilon'])
 
     # Print initial energy
     state = simulation.context.getState(getEnergy=True)

@@ -10,7 +10,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --time=24:00:00
 #SBATCH --export=ALL
-#SBATCH --array=0-15
+#SBATCH --array=0-44
 #SBATCH --mem=16G
 
 import sys
