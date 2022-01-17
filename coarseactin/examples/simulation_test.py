@@ -60,19 +60,16 @@ def create_actin(length=100,
     model["element"] = [j for i in range(length) for j in bound_actin_template["element"]]
 
     # Remove two binding points
-    model = model[~((model['resSeq'] > length - 1) & (~model['name'].isin(
-        ['A5', 'A6', 'A7'] + ['Cc'] + [f'C{i + 1:02}' for i in range(12)] + [f'Cx{i + 1}' for i in range(3)])))]
+    model = model[~(((model['resSeq'] > length-1) | (model['resSeq'] == 1)) & ~model['name'].isin(['A1', 'A2', 'A3', 'A4']))]
 
     model.loc[model[model['resSeq'] == model['resSeq'].max()].index, 'resName'] = 'ACD'
     model.loc[model[model['resSeq'] == model['resSeq'].min()].index, 'resName'] = 'ACD'
-
 
     # Center the model
     model[['x', 'y', 'z']] -= model[['x', 'y', 'z']].mean()
 
     # Move the model
     model[['x', 'y', 'z']] = np.dot(model[['x', 'y', 'z']], rotation) + translation
-
 
     return model
 
@@ -215,7 +212,8 @@ if __name__ == '__main__':
     # Simulation #
     ##############
     import sys
-    sys.path.insert(0,'.')
+
+    sys.path.insert(0, '.')
     import openmm
     import openmm.app
     import simtk.unit as u
@@ -226,7 +224,7 @@ if __name__ == '__main__':
 
     # Create system
     platform = openmm.Platform.getPlatformByName(simulation_platform)
-    s = coarseactin.CoarseActin.from_topology(f'{Sname}.cif',)
+    s = coarseactin.CoarseActin.from_topology(f'{Sname}.cif', )
     print(s.system.getDefaultPeriodicBoxVectors())
     s.setForces(BundleConstraint=aligned, PlaneConstraint=system2D, CaMKII_Force=sjob['CaMKII_Force'])
     top = openmm.app.PDBxFile(f'{Sname}.cif')

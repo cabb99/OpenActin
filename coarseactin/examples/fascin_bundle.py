@@ -60,12 +60,10 @@ def create_actin(length=100,
     model["element"] = [j for i in range(length) for j in bound_actin_template["element"]]
 
     # Remove two binding points
-    model = model[~((model['resSeq'] > length - 1) & (model['name'].isin(
-        ['A5', 'A6', 'A7'] + ['Cc'] + [f'C{i + 1:02}' for i in range(12)] + [f'Cx{i + 1}' for i in range(3)])))]
+    model = model[~(((model['resSeq'] > length-1) | (model['resSeq'] == 1)) & ~model['name'].isin(['A1', 'A2', 'A3', 'A4']))]
 
     model.loc[model[model['resSeq'] == model['resSeq'].max()].index, 'resName'] = 'ACD'
     model.loc[model[model['resSeq'] == model['resSeq'].min()].index, 'resName'] = 'ACD'
-
 
     # Center the model
     model[['x', 'y', 'z']] -= model[['x', 'y', 'z']].mean()
@@ -73,6 +71,29 @@ def create_actin(length=100,
     # Move the model
     model[['x', 'y', 'z']] = np.dot(model[['x', 'y', 'z']], rotation) + translation
 
+    return model
+
+def create_abp(rotation=np.array([[1., 0., 0.],
+                                    [0., 1., 0.],
+                                    [0., 0., 1.]]),
+                 translation=np.array([5000, 5000, 5000]),
+                 abp='CaMKII'):
+    q = np.array([[np.cos(twist), -np.sin(twist), 0, 0],
+                  [np.sin(twist), np.cos(twist), 0, 0],
+                  [0, 0, 1, shift],
+                  [0, 0, 0, 1]])
+    rot = q[:3, :3].T
+    trans = q[:3, 3]
+
+    bound_actin_template = pandas.read_csv("coarseactin/data/CaMKII_bound_with_actin.csv", index_col=0)
+    model = bound_actin_template[bound_actin_template['resName'].isin([abp])]
+    model["resSeq"] = 1
+
+    # Center the model
+    model[['x', 'y', 'z']] -= model[['x', 'y', 'z']].mean()
+
+    # Move the model
+    model[['x', 'y', 'z']] = np.dot(model[['x', 'y', 'z']], rotation) + translation
 
     return model
 

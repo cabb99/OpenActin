@@ -575,8 +575,7 @@ class CoarseActin:
                 self.system.setVirtualSite(ix['Ab'], ab)
                 self.system.setVirtualSite(ix['Ac'], ac)
 
-
-            if resname == 'CAM':
+            if resname == 'CAM' or (resname == 'CBP' and 'Ca' not in ix):
                 # Parent sites
                 c1 = ix['Cx1']
                 c2 = ix['Cx2']
@@ -609,7 +608,7 @@ class CoarseActin:
                 self.system.setVirtualSite(ix['C11'], c11)
                 self.system.setVirtualSite(ix['C12'], c12)
                 self.system.setVirtualSite(ix['Cc'], cc)
-            if resname == 'FAS':
+            if resname == 'CAM2':
                 # Parent sites
                 c1 = ix['Cx1']
                 c2 = ix['Cx2']
