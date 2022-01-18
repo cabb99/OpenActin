@@ -1,7 +1,7 @@
 #!/home/cab22/miniconda3/bin/python
 
 #SBATCH --account=commons
-#SBATCH --output ./Simulations_nots/Box/slurm-%A_%a.out
+#SBATCH --output ./Simulations_nots/SingleABP/slurm-%A_%a.out
 #SBATCH --export=All
 #SBATCH --partition=commons
 #SBATCH --time=24:00:00
@@ -10,14 +10,14 @@
 #SBATCH --cpus-per-task=2
 #SBATCH --gres=gpu:1
 #SBATCH --export=ALL
-#SBATCH --array=0-23
+#SBATCH --array=0-192
 #SBATCH --mem=16G
 
 import sys
-import coarseactin
 import pandas as pd
+import coarseactin
 import numpy as np
-import scipy.spatial.transform as strans
+
 
 
 def create_actin(length=100,
@@ -67,25 +67,6 @@ def create_actin(length=100,
     model.loc[model[(model['resSeq'] == resmax) & model['resName'].isin(['ACT'])].index, 'resName'] = 'ACD'
     model.loc[model[(model['resSeq'] == resmin) & model['resName'].isin(['ACT'])].index, 'resName'] = 'ACD'
 
-    model.loc[model[model['resSeq'] == model['resSeq'].max()].index, 'resName'] = 'ACD'
-    model.loc[model[model['resSeq'] == model['resSeq'].min()].index, 'resName'] = 'ACD'
-
-    # Center the model
-    model[['x', 'y', 'z']] -= model[['x', 'y', 'z']].mean()
-
-    # Move the model
-    model[['x', 'y', 'z']] = np.dot(model[['x', 'y', 'z']], rotation) + translation
-
-    return model
-
-def create_abp(rotation=np.array([[1., 0., 0.],
-                                    [0., 1., 0.],
-                                    [0., 0., 1.]]),
-                 translation=np.array([5000, 5000, 5000]),
-                 abp='CaMKII'):
-    bound_actin_template = pd.read_csv("coarseactin/data/CaMKII_bound_with_actin.csv", index_col=0)
-    model = bound_actin_template[bound_actin_template['resName'].isin([abp])].copy()
-
     # Center the model
     model[['x', 'y', 'z']] -= model[['x', 'y', 'z']].mean()
 
@@ -102,27 +83,26 @@ if __name__ == '__main__':
 
     parameters = {"epsilon": [100,75,50,25],
                   "aligned": [False],
-                  "actinLen": [100],
+#                  "actinLen": [13,100],
+                  #"n":[1,2,4,8],
                   # "layers": [3],
                   # "repetition":range(3),
-                  "disorder": [0],
-                  "box_size": [10000],
-                  "n_actins":[20],
-                  "n_abps":[400],
+                  #"disorder": [0],
                   "temperature": [300],
                   "system2D": [False],
-                  "frequency": [1000],
-                  "run_time": [20],
-                  #"run_steps":[10000000],
+                  "frequency": [10000],
+                  #"run_time": [20],
+                  "runSteps":[10000000],
                   "abp": ['FAS', 'CAM', 'CBP', 'AAC', 'AAC2', 'CAM2'],
+                  #"rep": range(3),
+                  #"CaMKII_Force": ['multigaussian'],
                   "simulation_platform": ["OpenCL"]}
     test_parameters = {"simulation_platform": "CUDA",
                        "frequency": 10000,
-                       "run_time": 8,
-                       "abp":'FAS',
-                       "epsilon":50,
-                       #"abp": 'CAM',
-                       #"CaMKII_Force": 'multigaussian',
+                       #"run_time": 8,
+                       "run_steps": 10000000,
+                       "epsilon":70,
+                       "abp":'CBP',
                        }
     job_id = 0
     if len(sys.argv) > 1:
@@ -130,8 +110,8 @@ if __name__ == '__main__':
             job_id = int(sys.argv[1])
         except TypeError:
             pass
-#    sjob = coarseactin.SlurmJobArray("Simulations_nots/Box/Box", parameters, test_parameters, job_id)
-    sjob = coarseactin.SlurmJobArray("Box", parameters, test_parameters, job_id)
+    #sjob = coarseactin.SlurmJobArray("Simulations_nots/SingleABP/SingleABP", parameters, test_parameters, job_id)
+    sjob = coarseactin.SlurmJobArray("Simulations/DoubleABP/DoubleABP", parameters, test_parameters, job_id)
     sjob.print_parameters()
     sjob.print_slurm_variables()
     sjob.write_csv()
@@ -143,7 +123,7 @@ if __name__ == '__main__':
     ##############
     aligned = sjob["aligned"]
     system2D = sjob["system2D"]
-    actinLen = sjob["actinLen"]
+    actinLen = 100
     Sname = sjob.name
     simulation_platform = sjob["simulation_platform"]
     if sjob['abp'] in ['CAM','CAM2']:
@@ -156,24 +136,29 @@ if __name__ == '__main__':
     ###################
     # Set the points in the actin network
     import random
+    n = 2
+    angles = np.linspace(0, np.pi * 2, n + 1)
+    model = []
+    abp = sjob['abp']
 
-    full_model = []
-    #Add actins
-    for i in range(sjob["n_actins"]):
-        full_model += [create_actin(length=sjob["actinLen"],
-                       translation=np.random.random(3)*sjob["box_size"],
-                       rotation=strans.Rotation.random().as_matrix(),
-                       abp=None)]
-    #Add ABPs
-    for i in range(sjob["n_abps"]):
-        full_model += [create_abp(translation=np.random.random(3)*sjob["box_size"],
-                       rotation=strans.Rotation.random().as_matrix(),
-                       abp=sjob['abp'])]
+    for i in range(n):
+        t = angles[i]
+        rotation = np.array([[np.cos(t), -np.sin(t), 0.],
+                             [np.sin(t), np.cos(t), 0.],
+                             [0., 0., 1.]])
+        s = create_actin(actinLen, abp=abp, rotation=rotation)
+        #Select only the ABP in the middle
+        s = s[(s['resName'] != abp) | (s['chainID'].isin([50-13, 50+13]))]
+        s = coarseactin.Scene(s)
+        #center = s[s['name'].isin(['Cc', 'Cb'])][['x', 'y', 'z']].values
+        center = s[s['resName'] == abp][['x', 'y', 'z']].mean(axis=0).values
+        s = s.translate(-center)
+        model += [s]
+    model = coarseactin.Scene.concatenate(model)
+    model = coarseactin.Scene(model[(model['resName'] != abp) | model['chainID'].isin(['B','C'])])
 
-    print('Concatenate chains')
-    full_model = coarseactin.Scene.concatenate(full_model)
-
-    full_model = coarseactin.Scene(full_model.sort_values(['chainID', 'resSeq', 'name']))
+    #Split and rejoin the model so that ABPs are on a different chain
+    full_model = coarseactin.Scene(model.sort_values(['chainID', 'resSeq', 'name']))
     full_model.loc[:, 'chain_resid'] = full_model[['chainID', 'resSeq']].astype(str).T.apply(
         lambda x: '_'.join([str(a) for a in x]))
     full_model_actin = coarseactin.Scene(full_model[full_model['resName'].isin(['ACT', 'ACD'])])
@@ -201,7 +186,15 @@ if __name__ == '__main__':
 
     # Create system
     platform = openmm.Platform.getPlatformByName(simulation_platform)
-    s = coarseactin.CoarseActin.from_topology(f'{Sname}.cif', periodic_box=sjob['box_size'])
+    s = coarseactin.CoarseActin.from_topology(f'{Sname}.cif', )
+
+    #Add extra bonds for alfa actinin
+    #extra_bonds=[]
+    #for _, c in s.atom_list[(s.atom_list['residue_name'] == 'AAC') & (s.atom_list['atom_name'] == 'Cb')].groupby(
+    #        'chain_index'):
+    #    assert len(c.index)==2,'multiple Cbs in actinin'
+    #    i0,i1=c.index
+    #    extra_bonds+=[['AAC', i0, i1, 0, 10, 0, 350.0, 0, '1Cb-2Cb']]
 
     #Add extra bonds for CBP
     extra_bonds=[]
@@ -228,7 +221,9 @@ if __name__ == '__main__':
 
     # Set up simulation
     temperature = sjob["temperature"] * u.kelvin
+    # Using verlet integrator
     integrator = openmm.LangevinIntegrator(temperature, .0001 / u.picosecond, 1 * u.picoseconds)
+    # integrator=openmm.VerletIntegrator(1*u.picoseconds)
     simulation = openmm.app.Simulation(top.topology, s.system, integrator, platform)
     simulation.context.setPositions(coord.positions)
 
@@ -265,11 +260,11 @@ if __name__ == '__main__':
     simulation.context.setVelocitiesToTemperature(temperature * u.kelvin)
     time0 = time.ctime()
     time_0 = time.time()
-    #simulation.step(sjob['run_steps'])
+    simulation.step(sjob['runSteps'])
 
     # Turn off nematic parameter
     # simulation.context.setParameter('kp_bundle',0)
-    simulation.runForClockTime(sjob["run_time"])
+    #simulation.runForClockTime(sjob["run_time"])
 
     # Save checkpoint
     chk = f'{Sname}.chk'
