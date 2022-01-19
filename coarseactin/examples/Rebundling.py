@@ -100,7 +100,7 @@ if __name__ == '__main__':
                   "simulation_platform": ["OpenCL"]}
     test_parameters = {"simulation_platform": "CUDA",
                        "run_time": 8,
-                       "abp":'CBP',
+                       "abp":'CAM',
                        "disorder": 0.2,
                        }
     job_id = 0

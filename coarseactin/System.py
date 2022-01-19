@@ -8,6 +8,7 @@ import warnings
 
 import openmm
 import openmm.app
+import pandas as pd
 from simtk import unit
 import numpy as np
 import pandas
@@ -665,15 +666,27 @@ class CoarseActin:
                         if col not in ['i', 'j', 'k', 'l']:
                             temp[col] = b[col]
                     SB += [temp]
-        bonds = pandas.concat(bonds, sort=False)
-        bonds.sort_values(['i', 'j'], inplace=True)
-        angles = pandas.concat(angles, sort=False)
-        angles.sort_values(['i', 'j', 'k'], inplace=True)
-        dihedrals = pandas.concat(dihedrals, sort=False)
-        dihedrals.sort_values(['i', 'j', 'k', 'l'], inplace=True)
-        self.bonds = bonds.reset_index(drop=True)
-        self.angles = angles.reset_index(drop=True)
-        self.dihedrals = dihedrals.reset_index(drop=True)
+        if len(bonds) > 0:
+            bonds = pandas.concat(bonds, sort=False)
+            bonds.sort_values(['i', 'j'], inplace=True)
+            bonds = bonds.reset_index(drop=True)
+        else:
+            bonds=pd.DataFrame()
+        if len(angles)>0:
+            angles = pandas.concat(angles, sort=False)
+            angles.sort_values(['i', 'j', 'k'], inplace=True)
+            angles = angles.reset_index(drop=True)
+        else:
+            angles=pd.DataFrame()
+        if len(dihedrals)>0:
+            dihedrals = pandas.concat(dihedrals, sort=False)
+            dihedrals.sort_values(['i', 'j', 'k', 'l'], inplace=True)
+            dihedrals = dihedrals.reset_index(drop=True)
+        else:
+            dihedrals=pd.DataFrame()
+        self.bonds = bonds
+        self.angles = angles
+        self.dihedrals = dihedrals
 
     def Bond_diff(self, coord):
         # Comparison to starting structure distances
