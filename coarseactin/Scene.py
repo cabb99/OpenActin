@@ -393,6 +393,10 @@ class Scene(pandas.DataFrame):
         lines += "_atom_site.label_comp_id\n"
         lines += "_atom_site.label_asym_id\n"
         lines += "_atom_site.label_seq_id\n"
+        lines += "_atom_site.auth_atom_id\n"
+        lines += "_atom_site.auth_comp_id\n"
+        lines += "_atom_site.auth_asym_id\n"
+        lines += "_atom_site.auth_seq_id\n"
         lines += "_atom_site.pdbx_PDB_ins_code\n"
         lines += "_atom_site.Cartn_x\n"
         lines += "_atom_site.Cartn_y\n"
@@ -404,8 +408,11 @@ class Scene(pandas.DataFrame):
         lines += "_atom_site.pdbx_PDB_model_num\n"
 
         pdbx_table['line'] = 'ATOM'
-        for col in ['serial', 'name', 'resName', 'chainID', 'resSeq', 'iCode', 'x', 'y', 'z',
-                    'occupancy', 'tempFactor', 'element', 'charge', 'model']:
+        for col in ['serial',
+                    'name', 'resName', 'chainID', 'resSeq',
+                    'name', 'resName', 'chainID', 'resSeq',
+                    'iCode', 'x', 'y', 'z', 'occupancy',
+                    'tempFactor', 'element', 'charge', 'model']:
             pdbx_table['line'] += " "
             pdbx_table['line'] += pdbx_table[col].astype(str)
         pdbx_table['line'] += '\n'
