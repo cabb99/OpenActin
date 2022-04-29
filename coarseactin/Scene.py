@@ -413,7 +413,7 @@ class Scene(pandas.DataFrame):
                     'name', 'resName', 'chainID', 'resSeq', 'iCode',
                     'name', 'resName', 'chainID', 'resSeq','iCode',
                     'x', 'y', 'z',
-                    'occupancy', 'tempFactor', 
+                    'occupancy', 'tempFactor',
                     'element', 'charge', 'model']:
             pdbx_table['line'] += " "
             pdbx_table['line'] += pdbx_table[col].astype(str)
