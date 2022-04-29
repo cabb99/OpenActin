@@ -27,22 +27,22 @@ if __name__ == '__main__':
     # Setting Conditions for simulation#
     ###################################
 
-    parameters = {"epsilon": [100,50],
+    parameters = {"epsilon": [100,80,60,40],
                   "aligned": [False],
                   "actinLen": [500],
                   "bundleWidth": [1000],
                   # "repetition":range(3),
-                  "disorder": [0, 0.5],
+                  #"disorder": [0, 0.5],
                   "temperature": [300],
                   "system2D": [False],
-                  "frequency": [1000],
-                  "speed": [0.05,0.005],
-                  "layers": [1,2],
+                  #"frequency": [1000],
+                  "speed": [0.05,0.005,0.0005],
+                  "layers": [1,2,3],
                   # "run_time": [20],
                   # "runSteps":[10000000],
                   "abp": ['FAS', 'CAM', 'CBP', 'AAC', 'AAC2', 'CAM2'],
                   "simulation_platform": ["OpenCL"]}
-    test_parameters = {"simulation_platform": "CUDA",
+    test_parameters = {"simulation_platform": "CPU",
                        "abp": 'CAM',
                        "layers": 2,
                        "epsilon": 100,
@@ -50,9 +50,7 @@ if __name__ == '__main__':
                        #"speed": 0.05,
                        #'w1': 1,
                        #'w2': 0.1,
-                       "frequency": 2000,
                        "speed": 0.1,
-                       "disorder": 0,
 
                        }
     job_id = 0
@@ -82,7 +80,7 @@ if __name__ == '__main__':
     else:
         camkii_force = 'abp'
     layers = sjob['layers']
-
+    frequency = int(50/sjob.speed)
     ###################
     # Build the model #
     ###################
@@ -119,7 +117,7 @@ if __name__ == '__main__':
     print('Number of actin filaments:', len(coords))
 
     for c in coords:
-        height = (random.random() - 0.5) * sjob["actinLen"] * 28.21600347 * sjob["disorder"]
+        height = (random.random() - 0.5) * sjob["actinLen"] * 28.21600347 #* sjob["disorder"]
         t = np.random.random() * np.pi * 2
         rotation = np.array([[np.cos(t), -np.sin(t), 0.],
                              [np.sin(t), np.cos(t), 0.],
@@ -299,7 +297,7 @@ if __name__ == '__main__':
     #simulation.context.setParameter("w1", sjob["w1"])
     #simulation.context.setParameter("w2", sjob["w2"])
 
-    frequency = sjob["frequency"]
+    #frequency = sjob["frequency"]
     # Add reporters
     simulation.reporters.append(openmm.app.DCDReporter(f'{Sname}.dcd', frequency), )
     simulation.reporters.append(
