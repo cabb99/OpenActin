@@ -36,7 +36,7 @@ def create_actin(length=100,
     rot = q[:3, :3].T
     trans = q[:3, 3]
 
-    bound_actin_template = pandas.read_csv("coarseactin/data/CaMKII_bound_with_actin.csv", index_col=0)
+    bound_actin_template = pd.read_csv("coarseactin/data/CaMKII_bound_with_actin.csv", index_col=0)
 
     if abp is None:
         bound_actin_template = bound_actin_template[bound_actin_template['resName'].isin(['ACT'])]
@@ -52,15 +52,24 @@ def create_actin(length=100,
     points = np.concatenate(points)
 
     # Create the model
-    model = pandas.DataFrame(points, columns=['x', 'y', 'z'])
-    model["resSeq"] = [j + i for i in range(length) for j in bound_actin_template["resSeq"]]
+    model = pd.DataFrame(points, columns=['x', 'y', 'z'])
+    model["resSeq"] = [(j + i if name == 'ACT' else j) for i in range(length) for j, name in
+                       zip(bound_actin_template["resSeq"], bound_actin_template["resName"])]
+    model['chainID'] = [(0 if j == 'ACT' else i + 1) for i in range(length) for j in bound_actin_template["resName"]]
     model["name"] = [j for i in range(length) for j in bound_actin_template["name"]]
     model["type"] = [j for i in range(length) for j in bound_actin_template["type"]]
     model["resName"] = [j for i in range(length) for j in bound_actin_template["resName"]]
     model["element"] = [j for i in range(length) for j in bound_actin_template["element"]]
 
     # Remove two binding points
-    model = model[~(((model['resSeq'] > length-1) | (model['resSeq'] == 1)) & ~model['name'].isin(['A1', 'A2', 'A3', 'A4']))]
+    model = model[~(((model['resSeq'] >= length) | (model['resSeq'] <= 1)) & model['name'].isin(
+        ['A5', 'A6', 'A7', 'Aa', 'Ab', 'Ac'])) &
+                  ~(((model['chainID'] >= length) | (model['chainID'] == 1)) & ~model['resName'].isin(['ACT']))]
+
+    resmax = model[model['resName'].isin(['ACT'])]['resSeq'].max()
+    resmin = model[model['resName'].isin(['ACT'])]['resSeq'].min()
+    model.loc[model[(model['resSeq'] == resmax) & model['resName'].isin(['ACT'])].index, 'resName'] = 'ACD'
+    model.loc[model[(model['resSeq'] == resmin) & model['resName'].isin(['ACT'])].index, 'resName'] = 'ACD'
 
     model.loc[model[model['resSeq'] == model['resSeq'].max()].index, 'resName'] = 'ACD'
     model.loc[model[model['resSeq'] == model['resSeq'].min()].index, 'resName'] = 'ACD'
@@ -74,20 +83,12 @@ def create_actin(length=100,
     return model
 
 def create_abp(rotation=np.array([[1., 0., 0.],
-                                    [0., 1., 0.],
-                                    [0., 0., 1.]]),
-                 translation=np.array([5000, 5000, 5000]),
-                 abp='CaMKII'):
-    q = np.array([[np.cos(twist), -np.sin(twist), 0, 0],
-                  [np.sin(twist), np.cos(twist), 0, 0],
-                  [0, 0, 1, shift],
-                  [0, 0, 0, 1]])
-    rot = q[:3, :3].T
-    trans = q[:3, 3]
-
-    bound_actin_template = pandas.read_csv("coarseactin/data/CaMKII_bound_with_actin.csv", index_col=0)
-    model = bound_actin_template[bound_actin_template['resName'].isin([abp])]
-    model["resSeq"] = 1
+                                  [0., 1., 0.],
+                                  [0., 0., 1.]]),
+               translation=np.array([5000, 5000, 5000]),
+               abp='CaMKII'):
+    bound_actin_template = pd.read_csv("coarseactin/data/CaMKII_bound_with_actin.csv", index_col=0)
+    model = bound_actin_template[bound_actin_template['resName'].isin([abp])].copy()
 
     # Center the model
     model[['x', 'y', 'z']] -= model[['x', 'y', 'z']].mean()

@@ -27,7 +27,7 @@ if __name__ == '__main__':
     # Setting Conditions for simulation#
     ###################################
 
-    parameters = {"epsilon": [100],
+    parameters = {"epsilon": [100,50],
                   "aligned": [False],
                   "actinLen": [500],
                   "bundleWidth": [1000],
@@ -36,14 +36,24 @@ if __name__ == '__main__':
                   "temperature": [300],
                   "system2D": [False],
                   "frequency": [1000],
+                  "speed": [0.05,0.005],
+                  "layers": [1,2],
                   # "run_time": [20],
                   # "runSteps":[10000000],
                   "abp": ['FAS', 'CAM', 'CBP', 'AAC', 'AAC2', 'CAM2'],
                   "simulation_platform": ["OpenCL"]}
     test_parameters = {"simulation_platform": "CUDA",
-                       "run_time": 8,
-                       "abp":'FAS',
+                       "abp": 'CAM',
+                       "layers": 2,
+                       "epsilon": 100,
+                       #"frequency": 1000,
+                       #"speed": 0.05,
+                       #'w1': 1,
+                       #'w2': 0.1,
+                       "frequency": 2000,
+                       "speed": 0.1,
                        "disorder": 0,
+
                        }
     job_id = 0
     if len(sys.argv) > 1:
@@ -51,7 +61,7 @@ if __name__ == '__main__':
             job_id = int(sys.argv[1])
         except TypeError:
             pass
-    sjob = coarseactin.SlurmJobArray("Simulations/Pulling/pair", parameters, test_parameters, job_id)
+    sjob = coarseactin.SlurmJobArray("Simulations/Pulling/bundle", parameters, test_parameters, job_id)
     sjob.print_parameters()
     sjob.print_slurm_variables()
     sjob.write_csv()
@@ -71,7 +81,7 @@ if __name__ == '__main__':
         camkii_force = 'multigaussian'
     else:
         camkii_force = 'abp'
-    layers=1
+    layers = sjob['layers']
 
     ###################
     # Build the model #
@@ -85,7 +95,10 @@ if __name__ == '__main__':
     #layers = int(sjob["bundleWidth"]*np.sqrt(3)/2/d + 1)
     print('n_layers', layers)
     print(f'{abp} size', d)
-    colliding_distance = 40#d/4 #TODO: calculate correct distance
+    if abp == 'FAS':
+        colliding_distance = 40#d/4 #TODO: calculate correct distance
+    else:
+        colliding_distance = d/4 #TODO: calculate correct distance CAM
 
     # Set the points in the actin network
     import random
@@ -155,6 +168,29 @@ if __name__ == '__main__':
     # full_model_abps['chainID'] = 'A'
     full_model = coarseactin.Scene.concatenate([full_model_actin, full_model_abps])
 
+    #Add 2 extra beads for pulling
+    actin_chains = full_model[full_model['resName'] == 'ACD']['chain_index'].unique()
+    min_residue = (actin_chains[0], full_model[full_model['chain_index']==actin_chains[0]]['res_index'].unique().min())
+    max_residues = [(chain,full_model[full_model['chain_index']==chain]['res_index'].unique().max()) for chain in actin_chains[1:]]
+    A_index = full_model[(full_model['chain_index']==min_residue[0]) & (full_model['res_index']==min_residue[1])].index
+    B_index = np.concatenate([full_model[(full_model['chain_index']==mr[0]) & (full_model['res_index']==mr[1])].index for mr in max_residues])
+    A_coord=full_model.loc[A_index][['x', 'y', 'z']].mean()
+    B_coord=full_model.loc[B_index][['x', 'y', 'z']].mean()
+    AB_particle=full_model.iloc[-2:].copy()
+    AB_particle.index +=2
+    AB_particle['x'] = [A_coord['x'], B_coord['x']]
+    AB_particle['y'] = [A_coord['y'], B_coord['y']]
+    AB_particle['z'] = [A_coord['z'], B_coord['z']]
+    AB_particle['resSeq'] = [1, 2]
+    AB_particle['chainID'] = 'A'
+    AB_particle['name'] = 'B'
+    AB_particle['type'] = '11'
+    AB_particle['element'] = 'B'
+    AB_particle['resName'] = 'Bead'
+    full_model = coarseactin.Scene.concatenate([full_model, AB_particle])
+
+
+
     full_model.write_cif(f'{Sname}.cif', verbose=True)
 
     ##############
@@ -208,27 +244,44 @@ if __name__ == '__main__':
     coord = openmm.app.PDBxFile(f'{Sname}.cif')
 
     #Add external force
-    external_force = openmm.CustomExternalForce("k_spring*(z-Z_A1)^2")
-    external_force.addGlobalParameter('k_spring', 1)
-    Z_A1=coord.getPositions()[1][2]
-    external_force.addGlobalParameter('Z_A1', Z_A1)
-    external_force.addParticle(1)
+    external_force = openmm.CustomExternalForce("k_spring*(z-Z_A1)^2+k_spring*(y-y_A1)^2+k_spring*(x-x_A1)^2")
+    external_force.addGlobalParameter('k_spring', 10)
+    A1 = coord.getPositions()[-2]
+    Z_A1 = A1[2]
+    external_force.addGlobalParameter('x_A1', A1[0])
+    external_force.addGlobalParameter('y_A1', A1[1])
+    external_force.addGlobalParameter('Z_A1', A1[2])
+    external_force.addParticle(s.atom_list.index[-2])
 
     # Add external force
-    external_force2 = openmm.CustomExternalForce("k_spring*(z-Z_A2)^2")
+    external_force2 = openmm.CustomExternalForce("k_spring*(z-Z_A2)^2+k_spring*(y-y_A2)^2+k_spring*(x-x_A2)^2")
     # s.atom_list[(s.atom_list['atom_name'] == 'A2') &
     # (s.atom_list['chain_index'] == 1) &
     # (s.atom_list['residue_index'] == 999)]
-    Z_A2 = coord.getPositions()[9973][2]
-    external_force2.addGlobalParameter('k_spring', 1)
-    external_force2.addGlobalParameter('Z_A2', Z_A2)
-    external_force2.addParticle(9973)
+    A2 = coord.getPositions()[-1]
+    Z_A2 = A2[2]
+    external_force2.addGlobalParameter('k_spring', 10)
+    external_force2.addGlobalParameter('x_A2', A2[0])
+    external_force2.addGlobalParameter('y_A2', A2[1])
+    external_force2.addGlobalParameter('Z_A2', A2[2])
+    external_force2.addParticle(s.atom_list.index[-1])
 
     external_force.setForceGroup(10)
     external_force2.setForceGroup(10)
     s.system.addForce(external_force)
     s.system.addForce(external_force2)
 
+    #Add bond between pulling particle and the com of the pulled particles
+    centroid_force = openmm.CustomCentroidBondForce(2, "0.5*k*distance(g1,g2)^2");
+    centroid_force.addPerBondParameter("k");
+    centroid_force.addGroup(A_index)
+    centroid_force.addGroup(B_index)
+    centroid_force.addGroup([s.atom_list.index[-2]])  # A
+    centroid_force.addGroup([s.atom_list.index[-1]])  # B
+    centroid_force.addBond([0, 2], [1])  # A
+    centroid_force.addBond([1, 3], [1])  # B
+    centroid_force.setForceGroup(11)
+    s.system.addForce(centroid_force)
 
     # Set up simulation
     temperature = sjob["temperature"] * u.kelvin
@@ -238,6 +291,8 @@ if __name__ == '__main__':
 
     # Modify parameters
     simulation.context.setParameter("g_eps", sjob["epsilon"])
+    #simulation.context.setParameter("w1", sjob["w1"])
+    #simulation.context.setParameter("w2", sjob["w2"])
 
     frequency = sjob["frequency"]
     # Add reporters
@@ -275,9 +330,9 @@ if __name__ == '__main__':
     #print(epsilons)
     simulation.context.setParameter("w1", 5)
     simulation.context.setParameter("g_eps", sjob["epsilon"])
-    for ext in range(15000):
-        simulation.context.setParameter("Z_A1", Z_A1 + 0.05 * ext * u.nanometer)
-        simulation.context.setParameter("Z_A2", Z_A2 - 0.05 * ext * u.nanometer)
+    for ext in range(int(1000/sjob['speed'])):
+        simulation.context.setParameter("Z_A1", Z_A1 + sjob['speed'] * ext * u.nanometer)
+        simulation.context.setParameter("Z_A2", Z_A2 - sjob['speed'] * ext * u.nanometer)
         simulation.step(200)
 
     #for eps in epsilons:

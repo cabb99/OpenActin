@@ -1,6 +1,7 @@
 #!/home/cab22/miniconda3/bin/python
 
 #SBATCH --account=commons
+#SBATCH --output ./Simulations_nots/Unbundling/slurm-%A_%a.out
 #SBATCH --export=All
 #SBATCH --partition=commons
 #SBATCH --time=24:00:00
@@ -8,15 +9,15 @@
 #SBATCH --threads-per-core=1
 #SBATCH --cpus-per-task=2
 #SBATCH --gres=gpu:1
-#SBATCH --time=24:00:00
 #SBATCH --export=ALL
 #SBATCH --array=0-44
 #SBATCH --mem=16G
 
 import sys
 import coarseactin
-import pandas
+import pandas as pd
 import numpy as np
+import scipy.spatial.transform as strans
 import scipy.spatial.distance as sdist
 import itertools
 
@@ -35,7 +36,7 @@ def create_actin(length=100,
     rot = q[:3, :3].T
     trans = q[:3, 3]
 
-    bound_actin_template = pandas.read_csv("coarseactin/data/CaMKII_bound_with_actin.csv", index_col=0)
+    bound_actin_template = pd.read_csv("coarseactin/data/CaMKII_bound_with_actin.csv", index_col=0)
 
     if abp is None:
         bound_actin_template = bound_actin_template[bound_actin_template['resName'].isin(['ACT'])]
@@ -51,20 +52,25 @@ def create_actin(length=100,
     points = np.concatenate(points)
 
     # Create the model
-    model = pandas.DataFrame(points, columns=['x', 'y', 'z'])
-    model["resSeq"] = [j + i for i in range(length) for j in bound_actin_template["resSeq"]]
+    model = pd.DataFrame(points, columns=['x', 'y', 'z'])
+    model["resSeq"] = [(j + i if name == 'ACT' else j) for i in range(length) for j,name in zip(bound_actin_template["resSeq"],bound_actin_template["resName"])]
+    model['chainID'] = [(0 if j == 'ACT' else i + 1) for i in range(length) for j in bound_actin_template["resName"]]
     model["name"] = [j for i in range(length) for j in bound_actin_template["name"]]
     model["type"] = [j for i in range(length) for j in bound_actin_template["type"]]
     model["resName"] = [j for i in range(length) for j in bound_actin_template["resName"]]
     model["element"] = [j for i in range(length) for j in bound_actin_template["element"]]
 
     # Remove two binding points
-    model = model[~((model['resSeq'] > length - 1) & (model['name'].isin(
-        ['A5', 'A6', 'A7'] + ['Cc'] + [f'C{i + 1:02}' for i in range(12)] + [f'Cx{i + 1}' for i in range(3)])))]
+    model = model[~(((model['resSeq'] >= length) | (model['resSeq'] <= 1)) & model['name'].isin(['A5', 'A6', 'A7', 'Aa', 'Ab', 'Ac'])) &
+                  ~(((model['chainID'] >= length) | (model['chainID'] == 1)) & ~model['resName'].isin(['ACT']))]
+
+    resmax = model[model['resName'].isin(['ACT'])]['resSeq'].max()
+    resmin = model[model['resName'].isin(['ACT'])]['resSeq'].min()
+    model.loc[model[(model['resSeq'] == resmax) & model['resName'].isin(['ACT'])].index, 'resName'] = 'ACD'
+    model.loc[model[(model['resSeq'] == resmin) & model['resName'].isin(['ACT'])].index, 'resName'] = 'ACD'
 
     model.loc[model[model['resSeq'] == model['resSeq'].max()].index, 'resName'] = 'ACD'
     model.loc[model[model['resSeq'] == model['resSeq'].min()].index, 'resName'] = 'ACD'
-
 
     # Center the model
     model[['x', 'y', 'z']] -= model[['x', 'y', 'z']].mean()
@@ -72,6 +78,21 @@ def create_actin(length=100,
     # Move the model
     model[['x', 'y', 'z']] = np.dot(model[['x', 'y', 'z']], rotation) + translation
 
+    return model
+
+def create_abp(rotation=np.array([[1., 0., 0.],
+                                    [0., 1., 0.],
+                                    [0., 0., 1.]]),
+                 translation=np.array([5000, 5000, 5000]),
+                 abp='CaMKII'):
+    bound_actin_template = pd.read_csv("coarseactin/data/CaMKII_bound_with_actin.csv", index_col=0)
+    model = bound_actin_template[bound_actin_template['resName'].isin([abp])].copy()
+
+    # Center the model
+    model[['x', 'y', 'z']] -= model[['x', 'y', 'z']].mean()
+
+    # Move the model
+    model[['x', 'y', 'z']] = np.dot(model[['x', 'y', 'z']], rotation) + translation
 
     return model
 
@@ -104,7 +125,7 @@ if __name__ == '__main__':
             job_id = int(sys.argv[1])
         except TypeError:
             pass
-    sjob = coarseactin.SlurmJobArray("ActinBundle", parameters, test_parameters, job_id)
+    sjob = coarseactin.SlurmJobArray("Simulations_January2022/2022_01_08_OnlyActin2/ActinBundle", parameters, test_parameters, job_id)
     sjob.print_parameters()
     sjob.print_slurm_variables()
     sjob.write_csv()
@@ -117,8 +138,12 @@ if __name__ == '__main__':
     aligned = sjob["aligned"]
     system2D = sjob["system2D"]
     actinLen = sjob["actinLen"]
-    Sname = f'Simulations_January2022/2022_01_08_OnlyActin2/{sjob.name}'
+    Sname = sjob.name
     simulation_platform = sjob["simulation_platform"]
+    if sjob['abp'] in ['CAM','CAM2']:
+        camkii_force='multigaussian'
+    else:
+        camkii_force = 'abp'
 
     ###################
     # Build the model #

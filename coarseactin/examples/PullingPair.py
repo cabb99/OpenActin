@@ -22,64 +22,6 @@ from scipy.spatial import cKDTree
 import itertools
 
 
-def create_actin(length=100,
-                 twist=2.89942054, shift=-28.21600347,
-                 rotation=np.array([[1., 0., 0.],
-                                    [0., 1., 0.],
-                                    [0., 0., 1.]]),
-                 translation=np.array([5000, 5000, 5000]),
-                 abp=None):
-    q = np.array([[np.cos(twist), -np.sin(twist), 0, 0],
-                  [np.sin(twist), np.cos(twist), 0, 0],
-                  [0, 0, 1, shift],
-                  [0, 0, 0, 1]])
-    rot = q[:3, :3].T
-    trans = q[:3, 3]
-
-    bound_actin_template = pd.read_csv("coarseactin/data/CaMKII_bound_with_actin.csv", index_col=0)
-
-    if abp is None:
-        bound_actin_template = bound_actin_template[bound_actin_template['resName'].isin(['ACT'])]
-    else:
-        bound_actin_template = bound_actin_template[bound_actin_template['resName'].isin(['ACT', abp])]
-
-    # Create the helix
-    point = bound_actin_template[['x', 'y', 'z']]
-    points = []
-    for i in range(length):
-        points += [point]
-        point = np.dot(point, rot) + trans
-    points = np.concatenate(points)
-
-    # Create the model
-    model = pd.DataFrame(points, columns=['x', 'y', 'z'])
-    model["resSeq"] = [(j + i if name == 'ACT' else j) for i in range(length) for j, name in
-                       zip(bound_actin_template["resSeq"], bound_actin_template["resName"])]
-    model['chainID'] = [(0 if j == 'ACT' else i + 1) for i in range(length) for j in bound_actin_template["resName"]]
-    model["name"] = [j for i in range(length) for j in bound_actin_template["name"]]
-    model["type"] = [j for i in range(length) for j in bound_actin_template["type"]]
-    model["resName"] = [j for i in range(length) for j in bound_actin_template["resName"]]
-    model["element"] = [j for i in range(length) for j in bound_actin_template["element"]]
-
-    # Remove two binding points
-    model = model[~(((model['resSeq'] >= length) | (model['resSeq'] <= 1)) & model['name'].isin(
-        ['A5', 'A6', 'A7', 'Aa', 'Ab', 'Ac'])) &
-                  ~(((model['chainID'] >= length) | (model['chainID'] == 1)) & ~model['resName'].isin(['ACT']))]
-
-    resmax = model[model['resName'].isin(['ACT'])]['resSeq'].max()
-    resmin = model[model['resName'].isin(['ACT'])]['resSeq'].min()
-    model.loc[model[(model['resSeq'] == resmax) & model['resName'].isin(['ACT'])].index, 'resName'] = 'ACD'
-    model.loc[model[(model['resSeq'] == resmin) & model['resName'].isin(['ACT'])].index, 'resName'] = 'ACD'
-
-    # Center the model
-    model[['x', 'y', 'z']] -= model[['x', 'y', 'z']].mean()
-
-    # Move the model
-    model[['x', 'y', 'z']] = np.dot(model[['x', 'y', 'z']], rotation) + translation
-
-    return model
-
-
 if __name__ == '__main__':
     ###################################
     # Setting Conditions for simulation#
@@ -103,7 +45,7 @@ if __name__ == '__main__':
                        "abp":'FAS',
                        "disorder": 0,
                        }
-    job_id = 0
+    job_id = None
     if len(sys.argv) > 1:
         try:
             job_id = int(sys.argv[1])
@@ -170,7 +112,7 @@ if __name__ == '__main__':
                              [np.sin(t), np.cos(t), 0.],
                              [0., 0., 1.]])
         print(c[0], c[1], height)
-        full_model += [create_actin(length=sjob["actinLen"],
+        full_model += [coarseactin.create_actin(length=sjob["actinLen"],
                                     translation=np.array([5000 + d * c[0], 5000 + d * c[1], 5000 + height]),
                                     rotation=rotation, abp=abp)]
 

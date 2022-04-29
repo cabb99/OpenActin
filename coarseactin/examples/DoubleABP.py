@@ -67,6 +67,25 @@ def create_actin(length=100,
     model.loc[model[(model['resSeq'] == resmax) & model['resName'].isin(['ACT'])].index, 'resName'] = 'ACD'
     model.loc[model[(model['resSeq'] == resmin) & model['resName'].isin(['ACT'])].index, 'resName'] = 'ACD'
 
+    model.loc[model[model['resSeq'] == model['resSeq'].max()].index, 'resName'] = 'ACD'
+    model.loc[model[model['resSeq'] == model['resSeq'].min()].index, 'resName'] = 'ACD'
+
+    # Center the model
+    model[['x', 'y', 'z']] -= model[['x', 'y', 'z']].mean()
+
+    # Move the model
+    model[['x', 'y', 'z']] = np.dot(model[['x', 'y', 'z']], rotation) + translation
+
+    return model
+
+def create_abp(rotation=np.array([[1., 0., 0.],
+                                  [0., 1., 0.],
+                                  [0., 0., 1.]]),
+               translation=np.array([5000, 5000, 5000]),
+               abp='CaMKII'):
+    bound_actin_template = pd.read_csv("coarseactin/data/CaMKII_bound_with_actin.csv", index_col=0)
+    model = bound_actin_template[bound_actin_template['resName'].isin([abp])].copy()
+
     # Center the model
     model[['x', 'y', 'z']] -= model[['x', 'y', 'z']].mean()
 

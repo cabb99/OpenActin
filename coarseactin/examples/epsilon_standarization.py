@@ -1,101 +1,23 @@
 #!/home/cab22/miniconda3/bin/python
 
-# SBATCH --account=commons
-# SBATCH --output ./Simulations_nots/Box/slurm-%A_%a.out
-# SBATCH --export=All
-# SBATCH --partition=commons
-# SBATCH --time=24:00:00
-# SBATCH --ntasks=1
-# SBATCH --threads-per-core=1
-# SBATCH --cpus-per-task=2
-# SBATCH --gres=gpu:1
-# SBATCH --export=ALL
-# SBATCH --array=0-23
-# SBATCH --mem=16G
+#SBATCH --account=commons
+#SBATCH --output ./Simulations_nots/Box/slurm-%A_%a.out
+#SBATCH --export=All
+#SBATCH --partition=commons
+#SBATCH --time=24:00:00
+#SBATCH --ntasks=1
+#SBATCH --threads-per-core=1
+#SBATCH --cpus-per-task=2
+#SBATCH --gres=gpu:1
+#SBATCH --export=ALL
+#SBATCH --array=0-23
+#SBATCH --mem=16G
 
 import sys
 import coarseactin
 import pandas as pd
 import numpy as np
 import scipy.spatial.transform as strans
-
-
-def create_actin(length=100,
-                 twist=2.89942054, shift=-28.21600347,
-                 rotation=np.array([[1., 0., 0.],
-                                    [0., 1., 0.],
-                                    [0., 0., 1.]]),
-                 translation=np.array([5000, 5000, 5000]),
-                 abp=None):
-    q = np.array([[np.cos(twist), -np.sin(twist), 0, 0],
-                  [np.sin(twist), np.cos(twist), 0, 0],
-                  [0, 0, 1, shift],
-                  [0, 0, 0, 1]])
-    rot = q[:3, :3].T
-    trans = q[:3, 3]
-
-    bound_actin_template = pd.read_csv("coarseactin/data/CaMKII_bound_with_actin.csv", index_col=0)
-
-    if abp is None:
-        bound_actin_template = bound_actin_template[bound_actin_template['resName'].isin(['ACT'])]
-    else:
-        bound_actin_template = bound_actin_template[bound_actin_template['resName'].isin(['ACT', abp])]
-
-    # Create the helix
-    point = bound_actin_template[['x', 'y', 'z']]
-    points = []
-    for i in range(length):
-        points += [point]
-        point = np.dot(point, rot) + trans
-    points = np.concatenate(points)
-
-    # Create the model
-    model = pd.DataFrame(points, columns=['x', 'y', 'z'])
-    model["resSeq"] = [(j + i if name == 'ACT' else j) for i in range(length) for j, name in
-                       zip(bound_actin_template["resSeq"], bound_actin_template["resName"])]
-    model['chainID'] = [(0 if j == 'ACT' else i + 1) for i in range(length) for j in bound_actin_template["resName"]]
-    model["name"] = [j for i in range(length) for j in bound_actin_template["name"]]
-    model["type"] = [j for i in range(length) for j in bound_actin_template["type"]]
-    model["resName"] = [j for i in range(length) for j in bound_actin_template["resName"]]
-    model["element"] = [j for i in range(length) for j in bound_actin_template["element"]]
-
-    # Remove two binding points
-    model = model[~(((model['resSeq'] >= length) | (model['resSeq'] <= 1)) & model['name'].isin(
-        ['A5', 'A6', 'A7', 'Aa', 'Ab', 'Ac'])) &
-                  ~(((model['chainID'] >= length) | (model['chainID'] == 1)) & ~model['resName'].isin(['ACT']))]
-
-    resmax = model[model['resName'].isin(['ACT'])]['resSeq'].max()
-    resmin = model[model['resName'].isin(['ACT'])]['resSeq'].min()
-    model.loc[model[(model['resSeq'] == resmax) & model['resName'].isin(['ACT'])].index, 'resName'] = 'ACD'
-    model.loc[model[(model['resSeq'] == resmin) & model['resName'].isin(['ACT'])].index, 'resName'] = 'ACD'
-
-    model.loc[model[model['resSeq'] == model['resSeq'].max()].index, 'resName'] = 'ACD'
-    model.loc[model[model['resSeq'] == model['resSeq'].min()].index, 'resName'] = 'ACD'
-
-    # Center the model
-    model[['x', 'y', 'z']] -= model[['x', 'y', 'z']].mean()
-
-    # Move the model
-    model[['x', 'y', 'z']] = np.dot(model[['x', 'y', 'z']], rotation) + translation
-
-    return model
-
-
-def create_abp(rotation=np.array([[1., 0., 0.],
-                                  [0., 1., 0.],
-                                  [0., 0., 1.]]),
-               translation=np.array([5000, 5000, 5000]),
-               abp='CaMKII'):
-    bound_actin_template = pd.read_csv("coarseactin/data/CaMKII_bound_with_actin.csv", index_col=0)
-    model = bound_actin_template[bound_actin_template['resName'].isin([abp])].copy()
-
-    # Center the model
-    model[['x', 'y', 'z']] -= model[['x', 'y', 'z']].mean()
-
-    # Move the model
-    model[['x', 'y', 'z']] = np.dot(model[['x', 'y', 'z']], rotation) + translation
-
-    return model
 
 
 if __name__ == '__main__':
@@ -124,9 +46,10 @@ if __name__ == '__main__':
                        # "run_time": 0.01, #debugging
                        "frequency": 1000,
                        "run_time": 1,
-                       "abp": 'CAM',
-                       "epsilon": 500,
-                       "start_configuration": 'unbound'
+                       "abp": 'FAS',
+                       "epsilon": 50,
+                       "w1": 5,
+                       "w2_ratio": 0.1,
                        # "abp": 'CAM',
                        # "CaMKII_Force": 'multigaussian',
                        }
@@ -138,7 +61,6 @@ if __name__ == '__main__':
             pass
     # sjob = coarseactin.SlurmJobArray("Simulations_nots/Box/Box", parameters, test_parameters, job_id)
     sjob = coarseactin.SlurmJobArray("Simulations/Epsilon_W_Standardization/S", parameters, test_parameters, job_id)
-
     sjob.print_parameters()
     sjob.print_slurm_variables()
     sjob.write_csv()
@@ -167,24 +89,24 @@ if __name__ == '__main__':
     full_model = []
     # Add unbound actins
     for i in range(sjob["n_actins"] // 2):
-        full_model += [create_actin(length=sjob["actinLen"],
-                                    translation=np.random.random(3) * sjob["box_size"],
-                                    rotation=strans.Rotation.random().as_matrix(),
-                                    abp=None)]
+        full_model += [coarseactin.create_actin(length=sjob["actinLen"],
+                                                translation=np.random.random(3) * sjob["box_size"],
+                                                rotation=strans.Rotation.random().as_matrix(),
+                                                abp=None)]
     # Add unbound ABPs
     for i in range(sjob["n_abps"] // 2):
-        full_model += [create_abp(translation=np.random.random(3) * sjob["box_size"],
-                                  rotation=strans.Rotation.random().as_matrix(),
-                                  abp=sjob['abp'])]
+        full_model += [coarseactin.create_abp(translation=np.random.random(3) * sjob["box_size"],
+                                              rotation=strans.Rotation.random().as_matrix(),
+                                              abp=sjob['abp'])]
     unbound_actins = coarseactin.Scene.concatenate(full_model)
 
     full_model = []
     # Add bound abps
     for i in range(sjob["n_actins"] // 2):
-        full_model += [create_actin(length=sjob["actinLen"],
-                                    translation=np.random.random(3) * sjob["box_size"],
-                                    rotation=strans.Rotation.random().as_matrix(),
-                                    abp=sjob['abp'])]
+        full_model += [coarseactin.create_actin(length=sjob["actinLen"],
+                                                translation=np.random.random(3) * sjob["box_size"],
+                                                rotation=strans.Rotation.random().as_matrix(),
+                                                abp=sjob['abp'])]
     bound_actins = coarseactin.Scene.concatenate(full_model)
     selected_bound_abps = np.random.choice(bound_actins[bound_actins['resName'] == sjob['abp']]['chain_index'].unique(),
                                            sjob["n_abps"] // 2, replace=False)
@@ -270,7 +192,8 @@ if __name__ == '__main__':
                                      kineticEnergy=True, potentialEnergy=True, temperature=True))
 
     # Change simulation parameters
-    # simulation.context.setParameter("w1", 5)
+    simulation.context.setParameter("w1", sjob['w1'])
+    simulation.context.setParameter("w2", sjob['w2_ratio']*sjob['w1'])
     simulation.context.setParameter("g_eps", sjob['epsilon'])
 
     # Print initial energy

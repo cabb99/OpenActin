@@ -8,16 +8,15 @@
 #SBATCH --threads-per-core=1
 #SBATCH --cpus-per-task=2
 #SBATCH --gres=gpu:1
-#SBATCH --time=24:00:00
 #SBATCH --export=ALL
 #SBATCH --array=0-15
 #SBATCH --mem=16G
 
 import sys
+import pandas as pd
 import coarseactin
-import pandas
 import numpy as np
-#import scipy.spatial.distance as sdist
+
 from scipy.spatial import cKDTree
 import itertools
 
@@ -36,7 +35,7 @@ def create_actin(length=100,
     rot = q[:3, :3].T
     trans = q[:3, 3]
 
-    bound_actin_template = pandas.read_csv("coarseactin/data/CaMKII_bound_with_actin.csv", index_col=0)
+    bound_actin_template = pd.read_csv("coarseactin/data/CaMKII_bound_with_actin.csv", index_col=0)
 
     if abp is None:
         bound_actin_template = bound_actin_template[bound_actin_template['resName'].isin(['ACT'])]

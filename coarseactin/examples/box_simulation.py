@@ -18,6 +18,8 @@ import coarseactin
 import pandas as pd
 import numpy as np
 import scipy.spatial.transform as strans
+import scipy.spatial.distance as sdist
+import itertools
 
 
 def create_actin(length=100,
@@ -79,10 +81,10 @@ def create_actin(length=100,
     return model
 
 def create_abp(rotation=np.array([[1., 0., 0.],
-                                    [0., 1., 0.],
-                                    [0., 0., 1.]]),
-                 translation=np.array([5000, 5000, 5000]),
-                 abp='CaMKII'):
+                                  [0., 1., 0.],
+                                  [0., 0., 1.]]),
+               translation=np.array([5000, 5000, 5000]),
+               abp='CaMKII'):
     bound_actin_template = pd.read_csv("coarseactin/data/CaMKII_bound_with_actin.csv", index_col=0)
     model = bound_actin_template[bound_actin_template['resName'].isin([abp])].copy()
 
@@ -107,8 +109,8 @@ if __name__ == '__main__':
                   # "repetition":range(3),
                   "disorder": [0],
                   "box_size": [10000],
-                  "n_actins":[0],
-                  "n_abps":[1],
+                  "n_actins": [0],
+                  "n_abps": [1],
                   "temperature": [300],
                   "system2D": [False],
                   "frequency": [1000],
