@@ -206,7 +206,7 @@ if __name__ == '__main__':
     except ModuleNotFoundError:
         import simtk.openmm as openmm
         import simtk.openmm.app
-        import simtk.openmm.unit as u
+        import simtk.unit as u
     import time
     from sys import stdout
 

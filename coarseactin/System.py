@@ -13,7 +13,7 @@ try:
 except ModuleNotFoundError:
     import simtk.openmm as openmm
     import simtk.openmm.app
-    import simtk.openmm.unit as unit
+    import simtk.unit as unit
 
 import pandas as pd
 import numpy as np
