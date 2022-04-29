@@ -37,7 +37,7 @@ if __name__ == '__main__':
                   "system2D": [False],
                   #"frequency": [1000],
                   "speed": [0.05,0.005,0.0005],
-                  "layers": [1,2,3],
+                  "layers": [1,2],
                   # "run_time": [20],
                   # "runSteps":[10000000],
                   "abp": ['FAS', 'CAM', 'CBP', 'AAC', 'AAC2', 'CAM2'],
@@ -56,7 +56,7 @@ if __name__ == '__main__':
     job_id = 0
     if len(sys.argv) > 1:
         try:
-            job_id = int(sys.argv[1])
+            job_id = sys.argv[1]
         except TypeError:
             pass
     sjob = coarseactin.SlurmJobArray("Simulations/Pulling/bundle", parameters, test_parameters, job_id)
