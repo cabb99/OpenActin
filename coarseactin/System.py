@@ -18,7 +18,7 @@ except ModuleNotFoundError:
 import pandas as pd
 import numpy as np
 import configparser
-import prody
+#import prody
 import scipy.spatial.distance as sdist
 import os
 from . import utils
@@ -403,187 +403,187 @@ class SystemData:
 class CoarseActin:
 
     @classmethod
-    def from_parameters(cls,
-                        box_size=10000,
-                        n_actins=10,
-                        n_camkiis=200,
-                        min_dist=200,
-                        align_actins=False,
-                        bundle=False,
-                        system2D=False,
-                        model='Binding-Qian2',
-                        sname='actin',
-                        actinLenMin=50,
-                        actinLenMax=100):
-        self = cls()
-        # Get actin coordinates actin
-        pdb = prody.parsePDB(f'{__location__}/3j8i.pdb')
-        mean = np.array([])
-        for chain in 'DEF':
-            selection = pdb.select('chain %s' % chain)
-            D1 = pdb.select('chain %s and (resid 1 to 32 or resid 70 to 144 or resid 338 to 375)' % chain)
-            D2 = pdb.select('chain %s and (resid 33 to 69)' % chain)
-            D3 = pdb.select('chain %s and (resid 145 to 180 or resid 270 to 337)' % chain)
-            D4 = pdb.select('chain %s and (resid 181 to 269)' % chain)
-            m1 = D1.getCoords().mean(axis=0)
-            m2 = D2.getCoords().mean(axis=0)
-            m3 = D3.getCoords().mean(axis=0)
-            m4 = D4.getCoords().mean(axis=0)
-            mean = np.concatenate([mean, m1, m2, m3, m4], axis=0)
-        mean = mean.reshape(-1, 3)
-        actin = pd.DataFrame(mean, columns=['x', 'y', 'z'])
-        name = ['A1', 'A2', 'A3', 'A4'] * 3
-        resid = [i for j in range(3) for i in [j] * 4]
-        actin.index = zip(resid, name)
-        # Build virtual sites
-        vs = self.virtual_sites_definition
-        for j in [2]:
-            for i, s in vs[vs['molecule'] == model].iterrows():
-                w12 = s['w12']
-                w13 = s['w13']
-                wcross = s['wcross']
-
-                a = actin.loc[[(j, s['p1'])]].squeeze() / 10
-                b = actin.loc[[(j, s['p2'])]].squeeze() / 10
-                c = actin.loc[[(j, s['p3'])]].squeeze() / 10
-
-                r12 = b - a
-                r13 = c - a
-                rcross = np.cross(r12, r13)
-                r = (a + w12 * r12 + w13 * r13 + wcross * rcross) * 10
-                r.name = (j, s['site'])
-                actin = actin.append(r)
-        actin_reference = actin.sort_index()
-        # Build individual actins
-        factin = []
-        for i in range(n_actins):
-            # Set actin length
-            nactins = actinLenMin + int((actinLenMax - actinLenMin) * np.random.random())
-
-            names = ['A1', 'A2', 'A3', 'A4'] * 2 + ['A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7'] * (nactins - 2)
-            resnames = ['ACD'] * (4 * 2) + ['ACT'] * (7 * (nactins - 2))
-            resids = [1] * 4 + [2] * 4 + [i + 3 for j in range(nactins - 2) for i in [j] * 7]
-            # actin_mass=41.74*1E3
-            Factin = prody.AtomGroup()
-            Factina = prody.AtomGroup()
-            Factinb = prody.AtomGroup()
-
-            Factin.setCoords(actin_reference)
-            Factina.setCoords(actin_reference[4:-3])
-            Factinb.setCoords(actin_reference[:-4 - 3])
-
-            for i in range(nactins - 3):
-                a, t = prody.superpose(Factina, Factinb)
-                temp0 = Factin.getCoords()
-                test = prody.applyTransformation(t, Factin)
-                temp = np.concatenate([test.getCoords(), temp0[-4 - 3:]])
-                # print(len(temp))
-                Factin = prody.AtomGroup()
-                Factina = prody.AtomGroup()
-                Factinb = prody.AtomGroup()
-                Factin.setCoords(temp)
-                Factina.setCoords(temp[4:12])
-                Factinb.setCoords(temp[0:8])
-
-            Factin = prody.AtomGroup()
-            Factin.setCoords(temp[:])
-            n = len(Factin)
-            Factin.setNames(names)
-            Factin.setResnames(resnames)
-            Factin.setResnums(resids)
-            # Factin.setNames(['ALA' for i in range(n)])
-
-            prody.writePDB('Factin.pdb', Factin)
-            print(nactins, (n - 8) / 7. + 2)
-
-            atoms = pd.DataFrame(Factin.getCoords(), columns=['x', 'y', 'z'])
-            atoms['q'] = -11
-            atoms['molecule'] = 1
-            atoms['type'] = [1, 2, 3, 4] * 2 + [1, 2, 3, 4, 5, 6, 7] * (nactins - 2)
-            atoms['name'] = names
-            # atoms['mass']=[D1_mass,D2_mass,D3_mass,D4_mass]*2+([D1_mass,D2_mass,D3_mass,D4_mass,0,0,0])*(nactins-2)
-            atoms['resSeq'] = resids
-            atoms['resName'] = resnames
-            atoms.head()
-            factin += [atoms.copy()]
-
-        # Read camkii
-        camkii = self.template
-        # Build box
-        actins = []
-        camkiis = []
-        for i in range(n_actins):
-            d = 0
-            while d < min_dist:
-                f = factin[i][['x', 'y', 'z']].copy()
-                f = f - f.mean()
-                if align_actins:
-                    rot = utils.optimal_rotation(f)
-                else:
-                    rot = utils.random_rotation()
-                f = pd.DataFrame(np.dot(rot, f[['x', 'y', 'z']].T).T, columns=f.columns)
-                f = f - f.mean()
-                f += [box_size / 2. for j in range(3)]
-                a, b, c = [box_size * np.random.random() for j in range(3)]
-                if bundle:
-                    a = 0
-                if system2D:
-                    c = 0
-                f += [a, b, c]
-                f -= (f.mean() > box_size) * box_size
-                f2 = factin[i].copy()
-                f2[['x', 'y', 'z']] = f[['x', 'y', 'z']]
-                # f+=[box_size/2. for i in range(3)]
-                f2['molecule'] = i + 1
-                f2['molecule_name'] = 'actin'
-                f2['resName'] = factin[i]['resName']
-                try:
-                    d = sdist.cdist(f2[['x', 'y', 'z']], s[s['name'].isin(['A2', 'Cc'])][['x', 'y', 'z']]).min()
-                except KeyError:
-                    d = min_dist + 100
-            actins += [f2]
-            s = pd.concat(actins)
-        print("Actins in system")
-        print(f"Total number of particles: {len(s)}")
-        for i in range(n_camkiis):
-            d = 0
-            while d < min_dist:
-                f = camkii[['x', 'y', 'z']].copy()
-                f = f - f.mean()
-                f = pd.DataFrame(np.dot(random_rotation(), f[['x', 'y', 'z']].T).T, columns=f.columns)
-                f = f - f.mean()
-                f += [box_size / 2. for j in range(3)]
-                a, b, c = [box_size * np.random.random() for j in range(3)]
-                if system2D:
-                    c = box_size / 10 * np.random.random()
-                f += [a, b, c]
-                f -= (f.mean() > box_size) * box_size
-                f2 = camkii.copy()
-                f2[['x', 'y', 'z']] = f[['x', 'y', 'z']]
-                # f+=[box_size/2. for i in range(3)]
-                f2['molecule'] = n_actins + i + 1
-                f2['molecule_name'] = 'camkii'
-                f2['resSeq'] = i + 1
-                f2['resName'] = 'CAM'
-                # f2['mass']/=100
-                # rr=np.random.randint(2)
-                # if rr==1:
-                # f2['type']+=2
-                d = sdist.cdist(f2[['x', 'y', 'z']], s[s['name'].isin(['A2', 'Cc'])][['x', 'y', 'z']]).min()
-            camkiis += [f2]
-            s = pd.concat(actins + camkiis, sort=True)
-            print(f"CAMKII {i}")
-        print("CAMKIIs in system")
-        print(f"Total number of particles: {len(s)}")
-        s.index = np.arange(1, len(s) + 1)
-        s['mass'] = np.nan
-        # Write system
-        ss = SystemData(s.sort_values(['molecule', 'resSeq', 'name']))
-        ss.write_data()
-        ss.write_pdb(f'{sname}.pdb')
-        ss.write_gro(f'{sname}.gro')
-        ss.print_coeff()
-        return self.from_topology(topology_file=f'{sname}.pdb', PlaneConstraint=system2D, periodic_box=box_size)
+    # def from_parameters(cls,
+    #                     box_size=10000,
+    #                     n_actins=10,
+    #                     n_camkiis=200,
+    #                     min_dist=200,
+    #                     align_actins=False,
+    #                     bundle=False,
+    #                     system2D=False,
+    #                     model='Binding-Qian2',
+    #                     sname='actin',
+    #                     actinLenMin=50,
+    #                     actinLenMax=100):
+    #     self = cls()
+    #     # Get actin coordinates actin
+    #     pdb = prody.parsePDB(f'{__location__}/3j8i.pdb')
+    #     mean = np.array([])
+    #     for chain in 'DEF':
+    #         selection = pdb.select('chain %s' % chain)
+    #         D1 = pdb.select('chain %s and (resid 1 to 32 or resid 70 to 144 or resid 338 to 375)' % chain)
+    #         D2 = pdb.select('chain %s and (resid 33 to 69)' % chain)
+    #         D3 = pdb.select('chain %s and (resid 145 to 180 or resid 270 to 337)' % chain)
+    #         D4 = pdb.select('chain %s and (resid 181 to 269)' % chain)
+    #         m1 = D1.getCoords().mean(axis=0)
+    #         m2 = D2.getCoords().mean(axis=0)
+    #         m3 = D3.getCoords().mean(axis=0)
+    #         m4 = D4.getCoords().mean(axis=0)
+    #         mean = np.concatenate([mean, m1, m2, m3, m4], axis=0)
+    #     mean = mean.reshape(-1, 3)
+    #     actin = pd.DataFrame(mean, columns=['x', 'y', 'z'])
+    #     name = ['A1', 'A2', 'A3', 'A4'] * 3
+    #     resid = [i for j in range(3) for i in [j] * 4]
+    #     actin.index = zip(resid, name)
+    #     # Build virtual sites
+    #     vs = self.virtual_sites_definition
+    #     for j in [2]:
+    #         for i, s in vs[vs['molecule'] == model].iterrows():
+    #             w12 = s['w12']
+    #             w13 = s['w13']
+    #             wcross = s['wcross']
+    #
+    #             a = actin.loc[[(j, s['p1'])]].squeeze() / 10
+    #             b = actin.loc[[(j, s['p2'])]].squeeze() / 10
+    #             c = actin.loc[[(j, s['p3'])]].squeeze() / 10
+    #
+    #             r12 = b - a
+    #             r13 = c - a
+    #             rcross = np.cross(r12, r13)
+    #             r = (a + w12 * r12 + w13 * r13 + wcross * rcross) * 10
+    #             r.name = (j, s['site'])
+    #             actin = actin.append(r)
+    #     actin_reference = actin.sort_index()
+    #     # Build individual actins
+    #     factin = []
+    #     for i in range(n_actins):
+    #         # Set actin length
+    #         nactins = actinLenMin + int((actinLenMax - actinLenMin) * np.random.random())
+    #
+    #         names = ['A1', 'A2', 'A3', 'A4'] * 2 + ['A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7'] * (nactins - 2)
+    #         resnames = ['ACD'] * (4 * 2) + ['ACT'] * (7 * (nactins - 2))
+    #         resids = [1] * 4 + [2] * 4 + [i + 3 for j in range(nactins - 2) for i in [j] * 7]
+    #         # actin_mass=41.74*1E3
+    #         Factin = prody.AtomGroup()
+    #         Factina = prody.AtomGroup()
+    #         Factinb = prody.AtomGroup()
+    #
+    #         Factin.setCoords(actin_reference)
+    #         Factina.setCoords(actin_reference[4:-3])
+    #         Factinb.setCoords(actin_reference[:-4 - 3])
+    #
+    #         for i in range(nactins - 3):
+    #             a, t = prody.superpose(Factina, Factinb)
+    #             temp0 = Factin.getCoords()
+    #             test = prody.applyTransformation(t, Factin)
+    #             temp = np.concatenate([test.getCoords(), temp0[-4 - 3:]])
+    #             # print(len(temp))
+    #             Factin = prody.AtomGroup()
+    #             Factina = prody.AtomGroup()
+    #             Factinb = prody.AtomGroup()
+    #             Factin.setCoords(temp)
+    #             Factina.setCoords(temp[4:12])
+    #             Factinb.setCoords(temp[0:8])
+    #
+    #         Factin = prody.AtomGroup()
+    #         Factin.setCoords(temp[:])
+    #         n = len(Factin)
+    #         Factin.setNames(names)
+    #         Factin.setResnames(resnames)
+    #         Factin.setResnums(resids)
+    #         # Factin.setNames(['ALA' for i in range(n)])
+    #
+    #         prody.writePDB('Factin.pdb', Factin)
+    #         print(nactins, (n - 8) / 7. + 2)
+    #
+    #         atoms = pd.DataFrame(Factin.getCoords(), columns=['x', 'y', 'z'])
+    #         atoms['q'] = -11
+    #         atoms['molecule'] = 1
+    #         atoms['type'] = [1, 2, 3, 4] * 2 + [1, 2, 3, 4, 5, 6, 7] * (nactins - 2)
+    #         atoms['name'] = names
+    #         # atoms['mass']=[D1_mass,D2_mass,D3_mass,D4_mass]*2+([D1_mass,D2_mass,D3_mass,D4_mass,0,0,0])*(nactins-2)
+    #         atoms['resSeq'] = resids
+    #         atoms['resName'] = resnames
+    #         atoms.head()
+    #         factin += [atoms.copy()]
+    #
+    #     # Read camkii
+    #     camkii = self.template
+    #     # Build box
+    #     actins = []
+    #     camkiis = []
+    #     for i in range(n_actins):
+    #         d = 0
+    #         while d < min_dist:
+    #             f = factin[i][['x', 'y', 'z']].copy()
+    #             f = f - f.mean()
+    #             if align_actins:
+    #                 rot = utils.optimal_rotation(f)
+    #             else:
+    #                 rot = utils.random_rotation()
+    #             f = pd.DataFrame(np.dot(rot, f[['x', 'y', 'z']].T).T, columns=f.columns)
+    #             f = f - f.mean()
+    #             f += [box_size / 2. for j in range(3)]
+    #             a, b, c = [box_size * np.random.random() for j in range(3)]
+    #             if bundle:
+    #                 a = 0
+    #             if system2D:
+    #                 c = 0
+    #             f += [a, b, c]
+    #             f -= (f.mean() > box_size) * box_size
+    #             f2 = factin[i].copy()
+    #             f2[['x', 'y', 'z']] = f[['x', 'y', 'z']]
+    #             # f+=[box_size/2. for i in range(3)]
+    #             f2['molecule'] = i + 1
+    #             f2['molecule_name'] = 'actin'
+    #             f2['resName'] = factin[i]['resName']
+    #             try:
+    #                 d = sdist.cdist(f2[['x', 'y', 'z']], s[s['name'].isin(['A2', 'Cc'])][['x', 'y', 'z']]).min()
+    #             except KeyError:
+    #                 d = min_dist + 100
+    #         actins += [f2]
+    #         s = pd.concat(actins)
+    #     print("Actins in system")
+    #     print(f"Total number of particles: {len(s)}")
+    #     for i in range(n_camkiis):
+    #         d = 0
+    #         while d < min_dist:
+    #             f = camkii[['x', 'y', 'z']].copy()
+    #             f = f - f.mean()
+    #             f = pd.DataFrame(np.dot(random_rotation(), f[['x', 'y', 'z']].T).T, columns=f.columns)
+    #             f = f - f.mean()
+    #             f += [box_size / 2. for j in range(3)]
+    #             a, b, c = [box_size * np.random.random() for j in range(3)]
+    #             if system2D:
+    #                 c = box_size / 10 * np.random.random()
+    #             f += [a, b, c]
+    #             f -= (f.mean() > box_size) * box_size
+    #             f2 = camkii.copy()
+    #             f2[['x', 'y', 'z']] = f[['x', 'y', 'z']]
+    #             # f+=[box_size/2. for i in range(3)]
+    #             f2['molecule'] = n_actins + i + 1
+    #             f2['molecule_name'] = 'camkii'
+    #             f2['resSeq'] = i + 1
+    #             f2['resName'] = 'CAM'
+    #             # f2['mass']/=100
+    #             # rr=np.random.randint(2)
+    #             # if rr==1:
+    #             # f2['type']+=2
+    #             d = sdist.cdist(f2[['x', 'y', 'z']], s[s['name'].isin(['A2', 'Cc'])][['x', 'y', 'z']]).min()
+    #         camkiis += [f2]
+    #         s = pd.concat(actins + camkiis, sort=True)
+    #         print(f"CAMKII {i}")
+    #     print("CAMKIIs in system")
+    #     print(f"Total number of particles: {len(s)}")
+    #     s.index = np.arange(1, len(s) + 1)
+    #     s['mass'] = np.nan
+    #     # Write system
+    #     ss = SystemData(s.sort_values(['molecule', 'resSeq', 'name']))
+    #     ss.write_data()
+    #     ss.write_pdb(f'{sname}.pdb')
+    #     ss.write_gro(f'{sname}.gro')
+    #     ss.print_coeff()
+    #     return self.from_topology(topology_file=f'{sname}.pdb', PlaneConstraint=system2D, periodic_box=box_size)
 
     @classmethod
     def from_topology(cls, topology_file='actin.pdb', periodic_box=None, PlaneConstraint=False):
