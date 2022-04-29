@@ -87,8 +87,9 @@ class SlurmJobArray:
         self.keys = parameters.keys()
         self.all_conditions = list(itertools.product(*[parameters[k] for k in self.keys]))
 
-        if len(self.test_parameters.keys()-self.keys) > 0:
-            raise KeyError("A key in test_parameters is not set in parameters")
+        extra_keys = self.test_parameters.keys()-self.keys
+        if len(extra_keys) > 0:
+            raise KeyError(f"Some keys in test_parameters is not set in parameters: {extra_keys}")
 
         self.root = name
 
