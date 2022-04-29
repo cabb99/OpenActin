@@ -6,13 +6,17 @@ Handles the system class for openMM
 # Global imports
 import warnings
 
-import openmm
-import openmm.app
+try:
+    import openmm
+    import openmm.app
+    from simtk import unit
+except ModuleNotFoundError:
+    import simtk.openmm as openmm
+    import simtk.openmm.app
+    import simtk.openmm.unit as unit
+
 import pandas as pd
-from simtk import unit
 import numpy as np
-import pandas
-import sklearn.decomposition
 import configparser
 import prody
 import scipy.spatial.distance as sdist
@@ -60,7 +64,7 @@ def create_actin(length: int=100,
                                     [0., 0., 1.]]),
                  translation: np.array=np.array([5000, 5000, 5000]),
                  template_file: str="coarseactin/data/CaMKII_bound_with_actin.csv",
-                 abp: Optional[str]=None) -> pandas.DataFrame:
+                 abp: Optional[str]=None) -> pd.DataFrame:
     """
     Creates an actin fiber decorated (or not) with actin binding proteins.
     ----------
@@ -197,8 +201,8 @@ class SystemData:
             self.n_bonds = len(self.bonds)
             self.n_bondtypes = len(self.bondtypes)
         else:
-            self.bonds = pandas.DataFrame()
-            self.bondtypes = pandas.DataFrame()
+            self.bonds = pd.DataFrame()
+            self.bondtypes = pd.DataFrame()
             self.n_bonds = 0
             self.n_bondtypes = 0
 
@@ -210,8 +214,8 @@ class SystemData:
             self.n_angles = len(self.angles)
             self.n_angletypes = len(self.angletypes)
         else:
-            self.angles = pandas.DataFrame()
-            self.angletypes = pandas.DataFrame()
+            self.angles = pd.DataFrame()
+            self.angletypes = pd.DataFrame()
             self.n_angles = 0
             self.n_angletypes = 0
 
@@ -223,8 +227,8 @@ class SystemData:
             self.n_dihedrals = len(self.dihedrals)
             self.n_dihedraltypes = len(self.dihedraltypes)
         else:
-            self.dihedrals = pandas.DataFrame()
-            self.dihedraltypes = pandas.DataFrame()
+            self.dihedrals = pd.DataFrame()
+            self.dihedraltypes = pd.DataFrame()
             self.n_dihedrals = 0
             self.n_dihedraltypes = 0
 
@@ -236,8 +240,8 @@ class SystemData:
             self.n_impropers = len(self.impropers)
             self.n_impropertypes = len(self.impropertypes)
         else:
-            self.impropers = pandas.DataFrame()
-            self.impropertypes = pandas.DataFrame()
+            self.impropers = pd.DataFrame()
+            self.impropertypes = pd.DataFrame()
             self.n_impropers = 0
             self.n_impropertypes = 0
 
@@ -427,7 +431,7 @@ class CoarseActin:
             m4 = D4.getCoords().mean(axis=0)
             mean = np.concatenate([mean, m1, m2, m3, m4], axis=0)
         mean = mean.reshape(-1, 3)
-        actin = pandas.DataFrame(mean, columns=['x', 'y', 'z'])
+        actin = pd.DataFrame(mean, columns=['x', 'y', 'z'])
         name = ['A1', 'A2', 'A3', 'A4'] * 3
         resid = [i for j in range(3) for i in [j] * 4]
         actin.index = zip(resid, name)
@@ -492,7 +496,7 @@ class CoarseActin:
             prody.writePDB('Factin.pdb', Factin)
             print(nactins, (n - 8) / 7. + 2)
 
-            atoms = pandas.DataFrame(Factin.getCoords(), columns=['x', 'y', 'z'])
+            atoms = pd.DataFrame(Factin.getCoords(), columns=['x', 'y', 'z'])
             atoms['q'] = -11
             atoms['molecule'] = 1
             atoms['type'] = [1, 2, 3, 4] * 2 + [1, 2, 3, 4, 5, 6, 7] * (nactins - 2)
@@ -517,7 +521,7 @@ class CoarseActin:
                     rot = utils.optimal_rotation(f)
                 else:
                     rot = utils.random_rotation()
-                f = pandas.DataFrame(np.dot(rot, f[['x', 'y', 'z']].T).T, columns=f.columns)
+                f = pd.DataFrame(np.dot(rot, f[['x', 'y', 'z']].T).T, columns=f.columns)
                 f = f - f.mean()
                 f += [box_size / 2. for j in range(3)]
                 a, b, c = [box_size * np.random.random() for j in range(3)]
@@ -538,7 +542,7 @@ class CoarseActin:
                 except KeyError:
                     d = min_dist + 100
             actins += [f2]
-            s = pandas.concat(actins)
+            s = pd.concat(actins)
         print("Actins in system")
         print(f"Total number of particles: {len(s)}")
         for i in range(n_camkiis):
@@ -546,7 +550,7 @@ class CoarseActin:
             while d < min_dist:
                 f = camkii[['x', 'y', 'z']].copy()
                 f = f - f.mean()
-                f = pandas.DataFrame(np.dot(random_rotation(), f[['x', 'y', 'z']].T).T, columns=f.columns)
+                f = pd.DataFrame(np.dot(random_rotation(), f[['x', 'y', 'z']].T).T, columns=f.columns)
                 f = f - f.mean()
                 f += [box_size / 2. for j in range(3)]
                 a, b, c = [box_size * np.random.random() for j in range(3)]
@@ -567,7 +571,7 @@ class CoarseActin:
                 # f2['type']+=2
                 d = sdist.cdist(f2[['x', 'y', 'z']], s[s['name'].isin(['A2', 'Cc'])][['x', 'y', 'z']]).min()
             camkiis += [f2]
-            s = pandas.concat(actins + camkiis, sort=True)
+            s = pd.concat(actins + camkiis, sort=True)
             print(f"CAMKII {i}")
         print("CAMKIIs in system")
         print(f"Total number of particles: {len(s)}")
@@ -649,7 +653,7 @@ class CoarseActin:
                 data += [[atom.index, atom.id, atom.name,
                           residue.index, residue.id, residue.name,
                           residue.chain.index, residue.chain.id]]
-        atom_list = pandas.DataFrame(data, columns=cols)
+        atom_list = pd.DataFrame(data, columns=cols)
         atom_list.index = atom_list['atom_index']
         return atom_list
 
@@ -762,7 +766,7 @@ class CoarseActin:
             for SB, B in zip([bonds, angles, dihedrals],
                              [self.bond_definition, self.angle_definition, self.dihedral_definition]):
                 for _, b in B.iterrows():
-                    temp = pandas.DataFrame(columns=B.columns)
+                    temp = pd.DataFrame(columns=B.columns)
                     if 's' not in b:
                         b['s'] = 0
 
@@ -787,19 +791,19 @@ class CoarseActin:
                             temp[col] = b[col]
                     SB += [temp]
         if len(bonds) > 0:
-            bonds = pandas.concat(bonds, sort=False)
+            bonds = pd.concat(bonds, sort=False)
             bonds.sort_values(['i', 'j'], inplace=True)
             bonds = bonds.reset_index(drop=True)
         else:
             bonds=pd.DataFrame()
         if len(angles)>0:
-            angles = pandas.concat(angles, sort=False)
+            angles = pd.concat(angles, sort=False)
             angles.sort_values(['i', 'j', 'k'], inplace=True)
             angles = angles.reset_index(drop=True)
         else:
             angles=pd.DataFrame()
         if len(dihedrals)>0:
-            dihedrals = pandas.concat(dihedrals, sort=False)
+            dihedrals = pd.concat(dihedrals, sort=False)
             dihedrals.sort_values(['i', 'j', 'k', 'l'], inplace=True)
             dihedrals = dihedrals.reset_index(drop=True)
         else:

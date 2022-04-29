@@ -130,7 +130,7 @@ if __name__ == '__main__':
             job_id = int(sys.argv[1])
         except TypeError:
             pass
-    sjob = coarseactin.SlurmJobArray("Simulations_nots/SingleABP/SingleABP", parameters, test_parameters, job_id)
+    sjob = coarseactin.SlurmJobArray("Simulations/SingleABP/SingleABP", parameters, test_parameters, job_id)
     sjob.print_parameters()
     sjob.print_slurm_variables()
     sjob.write_csv()
@@ -196,9 +196,15 @@ if __name__ == '__main__':
     import sys
 
     sys.path.insert(0, '.')
-    import openmm
-    import openmm.app
-    import simtk.unit as u
+    try:
+        import openmm
+        import openmm.app
+        from simtk import unit as u
+    except ModuleNotFoundError:
+        import simtk.openmm as openmm
+        import simtk.openmm.app
+        import simtk.openmm.unit as u
+
     import time
     from sys import stdout
 
