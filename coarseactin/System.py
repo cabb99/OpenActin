@@ -402,7 +402,7 @@ class SystemData:
 
 class CoarseActin:
 
-    @classmethod
+    # @classmethod
     # def from_parameters(cls,
     #                     box_size=10000,
     #                     n_actins=10,
