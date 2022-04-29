@@ -11,6 +11,8 @@
     <Type name="Cc" class="D" element="Fe" mass="0"/>
     <Type name="Cm" class="D" element="C" mass="0"/>
     <Type name="Cb" class="D" element="C" mass="30000"/>#24000
+    <!-- Bead particle -->
+    <Type name="B" class="B" element="B" mass="100000"/>#24000
   </AtomTypes>
   <Residues>
     <Residue name="ACT">
@@ -64,6 +66,9 @@
       <Atom name="Ca" type="Cb"/>
       <Atom name="Cb" type="Cb"/>
       <Atom name="Cd" type="Cb"/>
+    </Residue>
+    <Residue name="Bead">
+      <Atom name="B" type="B"/>
     </Residue>
   </Residues>
 </ForceField>
