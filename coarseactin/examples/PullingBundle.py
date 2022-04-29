@@ -279,8 +279,8 @@ if __name__ == '__main__':
     #Add bond between pulling particle and the com of the pulled particles
     centroid_force = openmm.CustomCentroidBondForce(2, "0.5*k*distance(g1,g2)^2");
     centroid_force.addPerBondParameter("k");
-    centroid_force.addGroup(list(A_index))
-    centroid_force.addGroup(list(B_index))
+    centroid_force.addGroup([int(a) for a in A_index])
+    centroid_force.addGroup([int(a) for a in B_index])
     centroid_force.addGroup([int(s.atom_list.index[-2])])  # A
     centroid_force.addGroup([int(s.atom_list.index[-1])])  # B
     centroid_force.addBond([0, 2], [1])  # A
