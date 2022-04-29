@@ -256,7 +256,7 @@ if __name__ == '__main__':
     external_force.addGlobalParameter('x_A1', A1[0])
     external_force.addGlobalParameter('y_A1', A1[1])
     external_force.addGlobalParameter('Z_A1', A1[2])
-    external_force.addParticle(s.atom_list.index[-2])
+    external_force.addParticle(int(s.atom_list.index[-2]))
 
     # Add external force
     external_force2 = openmm.CustomExternalForce("k_spring*(z-Z_A2)^2+k_spring*(y-y_A2)^2+k_spring*(x-x_A2)^2")
@@ -269,7 +269,7 @@ if __name__ == '__main__':
     external_force2.addGlobalParameter('x_A2', A2[0])
     external_force2.addGlobalParameter('y_A2', A2[1])
     external_force2.addGlobalParameter('Z_A2', A2[2])
-    external_force2.addParticle(s.atom_list.index[-1])
+    external_force2.addParticle(int(s.atom_list.index[-1]))
 
     external_force.setForceGroup(10)
     external_force2.setForceGroup(10)
