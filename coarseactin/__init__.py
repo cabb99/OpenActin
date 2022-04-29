@@ -12,7 +12,8 @@ from .components import *
 from .utils.SlurmJobArray import SlurmJobArray
 from .utils.HexGrid import HexGrid
 from .utils.ChainNameGenerator import chain_name_generator
-# Handle versioneer
+
+# Handle versions
 from ._version import get_versions
 versions = get_versions()
 __version__ = versions['version']
