@@ -3,32 +3,58 @@ import warnings
 import itertools
 import pandas
 import time
+import typing
 
 
-class SlurmJobArray():
-    """ Selects a single condition from an array of parameters using the SLURM_ARRAY_TASK_ID environment variable.
-        The parameters need to be supplied as a dictionary. if the task is not in a slurm environment,
-        the test parameters will supersede the parameters, and the job_id would be taken as 0.  Example:
-        parameters={"epsilon":[100],
-                    "aligned":[True,False],
-                    "actinLen":[20,40,60,80,100,120,140,160,180,200,220,240,260,280,300],
-                    "repetition":range(5),
-                    "temperature":[300],
-                    "system2D":[False],
-                    "simulation_platform":["OpenCL"]}
-        test_parameters={"simulation_platform":"CPU"}
-        sjob=SlurmJobArray("ActinSimv6", parameters, test_parameters)
-        :var test_run: Boolean: This simulation is a test
-        :var job_id: SLURM_ARRAY_TASK_ID
-        :var all_parameters: Parameters used to initialize the job
-        :var parameters: Parameters for this particular job
-        :var name: The name (and relative path) of the output
+class SlurmJobArray:
+    """
+        Selects a single condition from an array of parameters using the SLURM_ARRAY_TASK_ID environment variable.
+        The parameters need to be supplied as a dictionary. If the task is not in a slurm environment,
+        the test parameters will supersede the parameters.
+        ...
+        Attributes
+        ----------
+            test_run: Boolean: This simulation is a test
+            job_id: SLURM_ARRAY_TASK_ID
+            all_parameters: Parameters used to initialize the job
+            parameters: Parameters for this particular job
+            name: The name (and relative path) of the output
+        Methods
+        -------
+            print_parameters:
+            print_slurm_variables:
+            write_csv:
     """
 
-    def __init__(self, name, parameters, test_parameters={}, test_id=0):
+    def __init__(self, name: str,
+                 parameters: dict,
+                 test_parameters: dict = None,
+                 job_id: typing.Union[int, str] = None):
+        """
 
+        example:
+            sjob = SlurmJobArray("ActinSimv6", parameters, test_parameters)
+        Parameters
+        ----------
+        name: str
+        parameters: dict
+            Example:
+                parameters={"epsilon":[100],
+                            "aligned":[True,False],
+                            "actinLen":[20,40,60,80,100,120,140,160,180,200,220,240,260,280,300],
+                            "repetition":range(5),
+                            "temperature":[300],
+                            "system2D":[False],
+                            "simulation_platform":["OpenCL"]}
+        test_parameters: dict, Optional
+            example:
+                test_parameters={"simulation_platform":"CPU"}
+        job_id: int | str
+        """
         self.all_parameters = parameters
         self.test_parameters = test_parameters
+        if test_parameters is None:
+            self.test_parameters = {}
 
         # Parse the slurm variables
         self.slurm_variables = {}
@@ -36,22 +62,63 @@ class SlurmJobArray():
             if len(key.split("_")) > 1 and key.split("_")[0] == 'SLURM':
                 self.slurm_variables.update({key: os.environ[key]})
 
-        # Check if there is a job id
         self.test_run = False
+        self.command = None
+
+        # Check if ran as slurm array and overwrite job id
         try:
-            self.job_id = int(self.slurm_variables["SLURM_ARRAY_TASK_ID"])
+            job_id = int(job_id)
+        except ValueError:
+            self.command = job_id
+            job_id = 0
+        except TypeError:
+            job_id = None
+
+        try:
+            job_id = int(self.slurm_variables["SLURM_ARRAY_TASK_ID"])
         except KeyError:
+            if job_id is None:
+                warnings.warn("JobID not set")
+                job_id = 0
+
+        # Set job id
+        self.job_id = job_id
+
+        self.keys = parameters.keys()
+        self.all_conditions = list(itertools.product(*[parameters[k] for k in self.keys]))
+
+        if len(self.test_parameters.keys()-self.keys) > 0:
+            raise KeyError("A key in test_parameters is not set in parameters")
+
+        self.root = name
+
+        if self.command == 'jobs':
+            self.write_jobs()
+        elif self.command == 'test':
+            warnings.warn("Test run will be executed")
             self.test_run = True
-            warnings.warn("Test Run: SLURM_ARRAY_TASK_ID not in environment variables")
-            self.job_id = test_id
 
-        keys = parameters.keys()
-        self.all_conditions = list(itertools.product(*[parameters[k] for k in keys]))
-        self.parameter = dict(zip(keys, self.all_conditions[self.job_id]))
+        # Assign the jobid name at least 3 characters or more depending in number of conditions
+        self.job_name_size = max(3, len(str(len(self) - 1)))
 
-        # The name only includes enough information to differentiate the simulations.
-        self.name = f"{name}_{self.job_id:03d}_" + '_'.join(
-            [f"{a[0]}_{self[a]}" for a in self.parameter if len(self.all_parameters[a]) > 1])
+    @property
+    def parameter(self):
+        return dict(zip(self.keys, self.all_conditions[self.job_id]))
+
+    @property
+    def job_name(self):
+        if self.command:
+            # If the job is a test, set "test" as the name
+            return self.command
+        else:
+            return f"{self.job_id:0{self.job_name_size}d}"
+
+    @property
+    def name(self):
+        """The name only includes enough information to differentiate the simulations."""
+        name_out = f"{self.root}_{self.job_name}_"
+        name_out += '_'.join([f"{a[0]}_{self[a]}" for a in self.parameter if len(self.all_parameters[a]) > 1])
+        return name_out
 
     def __getitem__(self, name):
         if self.test_run:
@@ -75,13 +142,16 @@ class SlurmJobArray():
     def __repr__(self):
         return str(self.parameter)
 
+    def __len__(self):
+        return len(self.all_conditions)
+
     def keys(self):
         return str(self.parameters.keys())
 
     def print_parameters(self):
-        print(f"Number of conditions: {len(self.all_conditions)}")
+        print(f"Number of conditions: {len(self)}")
         print("Running Conditions")
-        for k in self.parameter.keys():
+        for k in self.keys:
             print(f"{k} :", f"{self[k]}")
         print()
 
@@ -92,7 +162,8 @@ class SlurmJobArray():
         print()
 
     def write_csv(self, out=""):
-        s = pandas.concat([pandas.Series(self.parameter), pandas.Series(self.slurm_variables)])
+        s = pandas.concat([pandas.Series({k: self[k] for k in self.keys}),
+                           pandas.Series(self.slurm_variables)])
         s['test_run'] = self.test_run
         s['date'] = time.strftime("%Y_%m_%d")
         s['name'] = self.name
@@ -102,3 +173,18 @@ class SlurmJobArray():
             s.to_csv(self.name + '.param')
         else:
             s.to_csv(out)
+
+    def write_jobs(self, out=None):
+        import inspect
+        caller_path = inspect.stack()[1].filename
+        job_list = ""
+        _job_id = self.job_id
+        for job in range(len(self)):
+            self.job_id = job
+            job_list += f"python {caller_path} {self.job_id} > {self.name}.log\n"
+        self.job_id = _job_id
+        if out is None:
+            return job_list
+        else:
+            with open(out, 'w+') as out_file:
+                out_file.write(job_list)
