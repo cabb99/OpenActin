@@ -242,7 +242,7 @@ if __name__ == '__main__':
                       s.bonds['molecule'].isin(['Actin-ADP', 'ABP', 'CaMKII'])]
 
     print(s.system.getDefaultPeriodicBoxVectors())
-    s.setForces(BundleConstraint=aligned, PlaneConstraint=system2D, CaMKII_Force=camkii_force)
+    s.setForces(AlignmentConstraint=aligned, PlaneConstraint=system2D, CaMKII_Force=camkii_force)
     top = openmm.app.PDBxFile(f'{Sname}.cif')
     coord = openmm.app.PDBxFile(f'{Sname}.cif')
 
@@ -352,7 +352,7 @@ if __name__ == '__main__':
     #simulation.step(1000000)
 
     # Turn off nematic parameter
-    # simulation.context.setParameter('kp_bundle',0)
+    # simulation.context.setParameter('kp_alignment',0)
     # simulation.runForClockTime(sjob["run_time"])
 
     # Save checkpoint

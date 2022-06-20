@@ -825,7 +825,7 @@ class CoarseActin:
         """ Removes all forces from the system """
         [self.system.removeForce(0) for i, f in enumerate(self.system.getForces())]
 
-    def setForces(self, PlaneConstraint=False, CaMKII_Force='multigaussian', BundleConstraint=False):
+    def setForces(self, PlaneConstraint=False, CaMKII_Force='multigaussian', AlignmentConstraint=False):
         """ Adds the forces to the system """
         self.clearForces()
         # Harmonic Bonds
@@ -1056,61 +1056,61 @@ class CoarseActin:
                 plane_constraint.addParticle(i, [])
             self.system.addForce(plane_constraint)
 
-        if BundleConstraint:
-            print('Bundle Constraint added')
-            bundle_constraint = openmm.CustomCentroidBondForce(2, 'kp_bundle*(distance(g1,g2)^2-(x1-x2)^2)')
-            bundle_constraint.setForceGroup(7)
-            bundle_constraint.addGlobalParameter('kp_bundle', 0.01)
+        if AlignmentConstraint:
+            print('Alignment Constraint added')
+            alignment_constraint = openmm.CustomCentroidBondForce(2, 'kp_alignment*(distance(g1,g2)^2-(x1-x2)^2)')
+            alignment_constraint.setForceGroup(7)
+            alignment_constraint.addGlobalParameter('kp_alignment', 0.01)
             if self.periodic_box is not None:
-                bundle_constraint.setUsesPeriodicBoundaryConditions(True)
+                alignment_constraint.setUsesPeriodicBoundaryConditions(True)
             else:
-                bundle_constraint.setUsesPeriodicBoundaryConditions(False)
+                alignment_constraint.setUsesPeriodicBoundaryConditions(False)
             cc = 0
             for c, chain in self.atom_list.groupby('chain_index'):
                 if 'ACT' in chain.residue_name.unique():
-                    print(f'Setting up Bundle constraint for chain c')
-                    bundle_constraint.addGroup(
+                    print(f'Setting up Alignment constraint for chain {c}')
+                    alignment_constraint.addGroup(
                         list(chain[chain['atom_name'].isin(['A1', 'A2', 'A3', 'A4'])].index[:16]))
                     print(len(list(chain[chain['atom_name'].isin(['A1', 'A2', 'A3', 'A4'])].index[:16])))
-                    bundle_constraint.addGroup(
+                    alignment_constraint.addGroup(
                         list(chain[chain['atom_name'].isin(['A1', 'A2', 'A3', 'A4'])].index[-16:]))
                     print(len(list(chain[chain['atom_name'].isin(['A1', 'A2', 'A3', 'A4'])].index[-16:])))
                     print([cc, cc + 1])
-                    bundle_constraint.addBond([cc, cc + 1])
+                    alignment_constraint.addBond([cc, cc + 1])
                     cc += 2
-            self.system.addForce(bundle_constraint)
+            self.system.addForce(alignment_constraint)
             print(self.system.getNumForces())
         else:
-            print('Bundled constrain not added')
-            bundle_constraint = openmm.CustomCentroidBondForce(2, '0*kp_bundle*(distance(g1,g2)^2-(x1-x2)^2)')
-            bundle_constraint.setForceGroup(7)
-            bundle_constraint.addGlobalParameter('kp_bundle', 0.01)
+            print('Alignment constrain not added')
+            alignment_constraint = openmm.CustomCentroidBondForce(2, '0*kp_alignment*(distance(g1,g2)^2-(x1-x2)^2)')
+            alignment_constraint.setForceGroup(7)
+            alignment_constraint.addGlobalParameter('kp_alignment', 0.01)
             if self.periodic_box is not None:
-                bundle_constraint.setUsesPeriodicBoundaryConditions(True)
+                alignment_constraint.setUsesPeriodicBoundaryConditions(True)
             else:
-                bundle_constraint.setUsesPeriodicBoundaryConditions(False)
+                alignment_constraint.setUsesPeriodicBoundaryConditions(False)
             cc = 0
             for c, chain in self.atom_list.groupby('chain_index'):
                 if 'ACT' in chain.residue_name.unique():
-                    bundle_constraint.addGroup(
+                    alignment_constraint.addGroup(
                         list(chain[chain['atom_name'].isin(['A1', 'A2', 'A3', 'A4'])].index[16:]))
-                    bundle_constraint.addGroup(
+                    alignment_constraint.addGroup(
                         list(chain[chain['atom_name'].isin(['A1', 'A2', 'A3', 'A4'])].index[-16:]))
-                    bundle_constraint.addBond([cc, cc + 1])
+                    alignment_constraint.addBond([cc, cc + 1])
                     cc += 2
-            self.system.addForce(bundle_constraint)
+            self.system.addForce(alignment_constraint)
             print(self.system.getNumForces())
         '''
-	if BundleConstraint:
-            bundle_constraint = openmm.CustomCompoundBondForce(2,'kb*((y1-y2)^2+(z1+z2)^2')
-            bundle_constraint.addGlobalParameter('kb', 0.1)
+	if AlignmentConstraint:
+            alignment_constraint = openmm.CustomCompoundBondForce(2,'kb*((y1-y2)^2+(z1+z2)^2')
+            alignment_constraint.addGlobalParameter('kb', 0.1)
             for i in self.atom_list.index:
-                bundle_constraint.addBond(i, [])
-            self.system.addForce(bundle_constraint)
+                alignment_constraint.addBond(i, [])
+            self.system.addForce(alignment_constraint)
         else:
-            bundle_constraint = openmm.CustomExternalForce('kb*0')
-            bundle_constraint.addGlobalParameter('kb', 0.1)
+            alignment_constraint = openmm.CustomExternalForce('kb*0')
+            alignment_constraint.addGlobalParameter('kb', 0.1)
             for i in self.atom_list.index:
-                bundle_constraint.addParticle(i, [])
-            self.system.addForce(bundle_constraint)
+                alignment_constraint.addParticle(i, [])
+            self.system.addForce(alignment_constraint)
         '''
