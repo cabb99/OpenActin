@@ -279,6 +279,8 @@ class Scene(pandas.DataFrame):
 
     # Writing
     def write_pdb(self, file=None, verbose=False):
+
+        # TODO Add connectivity output
         # Fill empty columns
         if verbose:
             print(f"Writing pdb file ({len(self)} atoms): {file}")
@@ -358,6 +360,7 @@ class Scene(pandas.DataFrame):
             make sure these are valid IDs that satisfy the requirements of the
             PDBx/mmCIF format.  Otherwise, the output file will be invalid.
         """
+        # TODO Add connectivity output
         if verbose:
             print(f"Writing cif file ({len(self)} atoms): {file}")
 
