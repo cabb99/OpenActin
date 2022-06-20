@@ -74,10 +74,10 @@ class SlurmJobArray:
         except TypeError:
             job_id = None
 
-        try:
-            job_id = int(self.slurm_variables["SLURM_ARRAY_TASK_ID"])
-        except KeyError:
-            if job_id is None:
+        if job_id is None:
+            try:
+                job_id = int(self.slurm_variables["SLURM_ARRAY_TASK_ID"])
+            except KeyError:
                 warnings.warn("JobID not set")
                 job_id = 0
 
@@ -94,7 +94,8 @@ class SlurmJobArray:
         self.root = name
 
         if self.command == 'jobs':
-            self.write_jobs()
+            self.write_jobs('slurm_jobs.txt')
+            exit(1)
         elif self.command == 'test':
             warnings.warn("Test run will be executed")
             self.test_run = True
@@ -175,9 +176,10 @@ class SlurmJobArray:
         else:
             s.to_csv(out)
 
-    def write_jobs(self, out=None):
+    def write_jobs(self, out=None, split=8):
         import inspect
-        caller_path = inspect.stack()[1].filename
+        print(inspect.stack())
+        caller_path = inspect.stack()[2].filename
         job_list = ""
         _job_id = self.job_id
         for job in range(len(self)):
@@ -189,3 +191,4 @@ class SlurmJobArray:
         else:
             with open(out, 'w+') as out_file:
                 out_file.write(job_list)
+

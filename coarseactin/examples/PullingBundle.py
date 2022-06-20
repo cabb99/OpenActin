@@ -51,15 +51,9 @@ if __name__ == '__main__':
                        #'w1': 1,
                        #'w2': 0.1,
                        "speed": 0.1,
-
                        }
-    job_id = 0
-    if len(sys.argv) > 1:
-        try:
-            job_id = sys.argv[1]
-        except TypeError:
-            pass
-    sjob = coarseactin.SlurmJobArray("Simulations/Pulling/bundle", parameters, test_parameters, job_id)
+
+    sjob = coarseactin.SlurmJobArray("Simulations/Pulling/bundle", parameters, test_parameters)
     sjob.print_parameters()
     sjob.print_slurm_variables()
     sjob.write_csv()

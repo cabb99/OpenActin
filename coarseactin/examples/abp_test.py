@@ -102,9 +102,9 @@ if __name__ == '__main__':
     # Setting Conditions for simulation#
     ###################################
 
-    parameters = {"epsilon": [100,75,50,25],
+    parameters = {"epsilon": [50],
                   "aligned": [False],
-                  "actinLen": [13,100],
+                  "actinLen": [100],
                   "n":[1,2,4,8],
                   # "layers": [3],
                   # "repetition":range(3),
@@ -115,8 +115,7 @@ if __name__ == '__main__':
                   #"run_time": [20],
                   "run_steps":[10000000],
                   "abp": ['FAS', 'CAM', 'CBP', 'AAC', 'AAC2', 'CAM2'],
-                  #"rep": range(3),
-                  #"CaMKII_Force": ['multigaussian'],
+                  "aligned":[False,True],
                   "simulation_platform": ["OpenCL"]}
     test_parameters = {"simulation_platform": "CUDA",
                        "frequency": 1000,
@@ -159,7 +158,7 @@ if __name__ == '__main__':
     angles = np.linspace(0, np.pi * 2, n + 1)
     model = []
     abp = sjob['abp']
-    center_resid=int(actinLen)+1
+    center_resid = int(actinLen)+1
     for i in range(n):
         t = angles[i]
         rotation = np.array([[np.cos(t), -np.sin(t), 0.],

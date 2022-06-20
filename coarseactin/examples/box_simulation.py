@@ -1,5 +1,4 @@
 #!/home/cab22/miniconda3/bin/python
-
 #SBATCH --account=commons
 #SBATCH --output ./Simulations_nots/Box/slurm-%A_%a.out
 #SBATCH --export=All
@@ -21,88 +20,13 @@ import scipy.spatial.transform as strans
 import scipy.spatial.distance as sdist
 import itertools
 
-
-def create_actin(length=100,
-                 twist=2.89942054, shift=-28.21600347,
-                 rotation=np.array([[1., 0., 0.],
-                                    [0., 1., 0.],
-                                    [0., 0., 1.]]),
-                 translation=np.array([5000, 5000, 5000]),
-                 abp=None):
-    q = np.array([[np.cos(twist), -np.sin(twist), 0, 0],
-                  [np.sin(twist), np.cos(twist), 0, 0],
-                  [0, 0, 1, shift],
-                  [0, 0, 0, 1]])
-    rot = q[:3, :3].T
-    trans = q[:3, 3]
-
-    bound_actin_template = pd.read_csv("coarseactin/data/CaMKII_bound_with_actin.csv", index_col=0)
-
-    if abp is None:
-        bound_actin_template = bound_actin_template[bound_actin_template['resName'].isin(['ACT'])]
-    else:
-        bound_actin_template = bound_actin_template[bound_actin_template['resName'].isin(['ACT', abp])]
-
-    # Create the helix
-    point = bound_actin_template[['x', 'y', 'z']]
-    points = []
-    for i in range(length):
-        points += [point]
-        point = np.dot(point, rot) + trans
-    points = np.concatenate(points)
-
-    # Create the model
-    model = pd.DataFrame(points, columns=['x', 'y', 'z'])
-    model["resSeq"] = [(j + i if name == 'ACT' else j) for i in range(length) for j,name in zip(bound_actin_template["resSeq"],bound_actin_template["resName"])]
-    model['chainID'] = [(0 if j == 'ACT' else i + 1) for i in range(length) for j in bound_actin_template["resName"]]
-    model["name"] = [j for i in range(length) for j in bound_actin_template["name"]]
-    model["type"] = [j for i in range(length) for j in bound_actin_template["type"]]
-    model["resName"] = [j for i in range(length) for j in bound_actin_template["resName"]]
-    model["element"] = [j for i in range(length) for j in bound_actin_template["element"]]
-
-    # Remove two binding points
-    model = model[~(((model['resSeq'] >= length) | (model['resSeq'] <= 1)) & model['name'].isin(['A5', 'A6', 'A7', 'Aa', 'Ab', 'Ac'])) &
-                  ~(((model['chainID'] >= length) | (model['chainID'] == 1)) & ~model['resName'].isin(['ACT']))]
-
-    resmax = model[model['resName'].isin(['ACT'])]['resSeq'].max()
-    resmin = model[model['resName'].isin(['ACT'])]['resSeq'].min()
-    model.loc[model[(model['resSeq'] == resmax) & model['resName'].isin(['ACT'])].index, 'resName'] = 'ACD'
-    model.loc[model[(model['resSeq'] == resmin) & model['resName'].isin(['ACT'])].index, 'resName'] = 'ACD'
-
-    model.loc[model[model['resSeq'] == model['resSeq'].max()].index, 'resName'] = 'ACD'
-    model.loc[model[model['resSeq'] == model['resSeq'].min()].index, 'resName'] = 'ACD'
-
-    # Center the model
-    model[['x', 'y', 'z']] -= model[['x', 'y', 'z']].mean()
-
-    # Move the model
-    model[['x', 'y', 'z']] = np.dot(model[['x', 'y', 'z']], rotation) + translation
-
-    return model
-
-def create_abp(rotation=np.array([[1., 0., 0.],
-                                  [0., 1., 0.],
-                                  [0., 0., 1.]]),
-               translation=np.array([5000, 5000, 5000]),
-               abp='CaMKII'):
-    bound_actin_template = pd.read_csv("coarseactin/data/CaMKII_bound_with_actin.csv", index_col=0)
-    model = bound_actin_template[bound_actin_template['resName'].isin([abp])].copy()
-
-    # Center the model
-    model[['x', 'y', 'z']] -= model[['x', 'y', 'z']].mean()
-
-    # Move the model
-    model[['x', 'y', 'z']] = np.dot(model[['x', 'y', 'z']], rotation) + translation
-
-    return model
-
-
 if __name__ == '__main__':
     ###################################
     # Setting Conditions for simulation#
     ###################################
-
-    parameters = {"epsilon": [100,75,50,25],
+    """ The objective of this experiment is to simulate a big system containing multiple filaments and abps 
+    and observe their behavior"""
+    parameters = {"epsilon": [100, 75, 50, 25],
                   "aligned": [False],
                   "actinLen": [100],
                   # "layers": [3],
@@ -132,7 +56,7 @@ if __name__ == '__main__':
             job_id = int(sys.argv[1])
         except TypeError:
             pass
-#    sjob = coarseactin.SlurmJobArray("Simulations_nots/Box/Box", parameters, test_parameters, job_id)
+    sjob = coarseactin.SlurmJobArray("Simulations/Box/Box", parameters, test_parameters, job_id)
     sjob = coarseactin.SlurmJobArray("Box", parameters, test_parameters, job_id)
     sjob.print_parameters()
     sjob.print_slurm_variables()
@@ -162,13 +86,13 @@ if __name__ == '__main__':
     full_model = []
     #Add actins
     for i in range(sjob["n_actins"]):
-        full_model += [create_actin(length=sjob["actinLen"],
+        full_model += [coarseactin.create_actin(length=sjob["actinLen"],
                        translation=np.random.random(3)*sjob["box_size"],
                        rotation=strans.Rotation.random().as_matrix(),
                        abp=None)]
     #Add ABPs
     for i in range(sjob["n_abps"]):
-        full_model += [create_abp(translation=np.random.random(3)*sjob["box_size"],
+        full_model += [coarseactin.create_abp(translation=np.random.random(3)*sjob["box_size"],
                        rotation=strans.Rotation.random().as_matrix(),
                        abp=sjob['abp'])]
 
