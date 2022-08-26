@@ -381,5 +381,78 @@ class Simulation:
             plt.ylabel(r'$\mu$m')
         return diffusion_constant/6
 
-    def compute_persistence_length(self):
-        raise NotImplementedError
+    def compute_persistence_length(self, return_correlations=False):
+        import scipy.optimize
+        # Get actin template file (The center of the actin fiber is at 0,0,0)
+        template_file = "/home/cb/Development/CoarseGrainedActin/coarseactin/data/CaMKII_bound_with_actin.csv"
+        bound_actin_template = pd.read_csv(template_file, index_col=0)
+        actin_sample = bound_actin_template[bound_actin_template['name'].isin(['A1', 'A2', 'A3', 'A4'])].copy()
+        actin_sample[['x', 'y', 'z']].mean()
+
+        # Get file names
+        root = self.simulation['root']
+        dcd_file = self.simulation['dcd']
+        cif_file = self.simulation['cif']
+
+        # Parse files
+        cif = prody.parseMMCIF(cif_file)
+        dcd = prody.parseDCD(dcd_file)
+
+        # Get monomer coordinates
+        monomers = []
+        for name in ['A1', 'A2', 'A3', 'A4']:
+            dcd.setAtoms(cif.select(f'name {name}'))
+            monomers += [dcd.getCoordsets()]
+        monomers = np.array(monomers).transpose(1, 2, 0, 3)
+
+        # Center monomers and get displacements
+        centroids = monomers.mean(axis=2)[:, :, np.newaxis, :]
+        centered_monomers = monomers - centroids
+
+        # Center actin template and get displacement
+        mapping_points = actin_sample[['x', 'y', 'z']].copy()
+        mapping_translation = mapping_points.mean(axis=0)
+        mapping_points -= mapping_translation
+
+        # Calculate rotation that minimizes RMSD
+        h = np.dot(mapping_points.T, centered_monomers).transpose(1, 2, 0, 3)
+        u, s, vt = np.linalg.svd(h)
+        v = vt.transpose(0, 1, 3, 2)
+        d = np.linalg.det(v @ u.transpose(0, 1, 3, 2))
+        e = np.repeat(np.repeat(np.eye(3)[np.newaxis, np.newaxis, :, :], d.shape[0], axis=0), d.shape[1], axis=1)
+        e[:, :, 2, 2] = d
+        r = v @ e @ u.transpose(0, 1, 3, 2)
+
+        # Map the points back using the rotation and the translation calculated
+        mapped_points = np.dot(mapping_points, r.transpose(0, 1, 3, 2)).transpose(1, 2, 0, 3)
+        actin_centers = np.dot([-mapping_translation.values], r.transpose(0, 1, 3, 2)).transpose(1, 2, 0,
+                                                                                                 3) + centroids
+
+        # Calculate the unit vector from one point to the next (and the average distance)
+        actin_vectors = (actin_centers[:, 1:, :, :] - actin_centers[:, :-1, :, :])[:, :, 0, :]
+        d = ((actin_vectors ** 2).sum(axis=2) ** .5).mean()
+        actin_vectors /= ((actin_vectors ** 2).sum(axis=2) ** .5)[:, :, np.newaxis]
+
+        # Calculate the vector correlation as a function of separation (distance)
+        actin_correlation = [
+            (actin_vectors[:, :, np.newaxis, :] @ actin_vectors[:, :, :, np.newaxis])[:, :, 0, 0].mean(axis=1)]
+        for i in range(1, actin_vectors.shape[1]):
+            actin_correlation += [
+                (actin_vectors[:, i:, np.newaxis, :] @ actin_vectors[:, :-i, :, np.newaxis])[:, :, 0, 0].mean(
+                    axis=1)]
+        actin_correlation = np.array(actin_correlation)
+
+        # Fit the correlation to an exponential decay to calculate the persistence length
+        x = np.repeat((np.arange(0, actin_vectors.shape[1]) * d)[:, np.newaxis], repeats=actin_vectors.shape[0],
+                      axis=1)
+        y = actin_correlation
+        initial_guess = -d * 50 / np.log(y.mean(axis=1)[50])
+        if np.isinf(initial_guess) or np.isnan(initial_guess):
+            initial_guess = 50000
+
+        lp = scipy.optimize.curve_fit(lambda x, a: np.exp(-x / a), x.ravel(), y.ravel(), p0=[initial_guess])[0][0]
+
+        if return_correlations:
+            return lp, x.mean(axis=1), y.mean(axis=1)
+        else:
+            return lp
