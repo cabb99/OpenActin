@@ -26,21 +26,21 @@ if __name__ == '__main__':
     # Setting Conditions for simulation#
     ###################################
 
-    """ The objective of this simulation is to determine the diffusion constant of actin filaments
+    """ The objective of this simulation is to fix the actin forcefield and make sure that forces actin on the actin
+    filaments do not cause irreversible non-native changes in their structure
     """
-    parameters = {"repetition": range(5),
+    parameters = {"repetition": range(1),
                   "aligned": [False, True],  # Constant may be different depending on the alignment/ size of filaments.
-                  "friction": [.000_1, .001, .000_01],
+                  "friction": [.000_2],
                   "system2D": [False],
-                  "actinLen": [1,35,70,140,280,350,420,490],  # Filaments with multiple binding sites
+                  "actinLen": [350],  # Filaments with multiple binding sites
                   "box_size": [None],  # Small box to make long simulations
                   "n_actins": [1],  # 3*75=225 ~ 3uM actin monomers
                   "temperature": [300],
-                  "frequency": [100_000, 10_000, 1_000, 100, 10, 1],
+                  "frequency": [1_000],
                   "simulation_platform": ["OpenCL"],
                   }
     test_parameters = {"simulation_platform": "CPU",
-                       "actinLen": 350,
                        }
     job_id = None
     if len(sys.argv) > 1:
@@ -49,7 +49,7 @@ if __name__ == '__main__':
         except TypeError:
             pass
     # sjob = coarseactin.SlurmJobArray("Simulations_nots/Box/Box", parameters, test_parameters, job_id)
-    sjob = coarseactin.SlurmJobArray("Simulations/Diffusion/SingleActin", parameters, test_parameters, job_id)
+    sjob = coarseactin.SlurmJobArray("Simulations/ForceField/Actin_fixed9", parameters, test_parameters, job_id)
     os.makedirs('/'.join(sjob.name.split('/')[:-1]), exist_ok=True)
     sjob.print_parameters()
     sjob.print_slurm_variables()
@@ -135,6 +135,24 @@ if __name__ == '__main__':
 
     print(s.system.getDefaultPeriodicBoxVectors())
     s.setForces(AlignmentConstraint=aligned, PlaneConstraint=system2D)
+
+    # Add forces for actin strange bending
+    extra_bond = openmm.CustomBondForce("0.5*epsilon_actinA2*(sigma_actinA2-r)^2*step(sigma_actinA2-r)")
+    extra_bond.addGlobalParameter('epsilon_actinA2', 0)
+    extra_bond.addGlobalParameter('sigma_actinA2', 0.4)
+    extra_bond.setForceGroup(1)
+    if s.periodic_box is not None:
+        extra_bond.setUsesPeriodicBoundaryConditions(True)
+    else:
+        extra_bond.setUsesPeriodicBoundaryConditions(False)
+    #Set the extra bonds
+    for _, c in s.atom_list[s.atom_list['residue_name'].isin(['ACT', 'ACD'])].groupby('chain_index'):
+        a2_list = c[c['atom_name'].isin(['A2'])].index
+        for i0, i1 in zip(a2_list[:-1],a2_list[1:]):
+            extra_bond.addBond(i0, i1)
+    s.system.addForce(extra_bond)
+
+    #Parse cif in openmm
     top = openmm.app.PDBxFile(f'{Sname}.cif')
     coord = openmm.app.PDBxFile(f'{Sname}.cif')
 
@@ -145,6 +163,13 @@ if __name__ == '__main__':
     simulation.context.setPositions(coord.positions)
 
     frequency = sjob["frequency"]
+
+    #Reporters
+    reporters = [openmm.app.StateDataReporter(stdout, frequency, step=True, time=True, potentialEnergy=True,
+                                              totalEnergy=True, temperature=True, separator='\t', ),
+                 openmm.app.StateDataReporter(f'{Sname}.log', frequency, step=True, time=True, totalEnergy=True,
+                                              kineticEnergy=True, potentialEnergy=True, temperature=True),
+                 openmm.app.DCDReporter(f'{Sname}.dcd', frequency)]
 
     # Print initial energy
     state = simulation.context.getState(getEnergy=True)
@@ -159,23 +184,25 @@ if __name__ == '__main__':
 
     # Minimize
     simulation.minimizeEnergy()
-    simulation.context.setVelocitiesToTemperature(temperature * u.kelvin)
+    simulation.context.setVelocitiesToTemperature(temperature * u.kelvin * 50)
     time0 = time.ctime()
     time_0 = time.time()
 
-    #Equilibrate
-    simulation.step(2_000_000)
+    for r in reporters:
+        simulation.reporters.append(r)
+
+    #Equilibrate at high temperature
+    simulation.integrator.setTemperature(temperature * 50)
+    simulation.step(10_000)
+    simulation.integrator.setTemperature(temperature)
+    #for eps in np.logspace(-2,5,8):
+    #    print(eps)
+    #    simulation.context.setParameter('epsilon_actinA2',0.01)
+    #    simulation.step(10_000)
 
     #Run
-    simulation.reporters.append(
-        openmm.app.StateDataReporter(stdout, frequency, step=True, time=True, potentialEnergy=True, totalEnergy=True,
-                                     temperature=True,
-                                     separator='\t', ))
-    simulation.reporters.append(
-        openmm.app.StateDataReporter(f'{Sname}.log', frequency, step=True, time=True, totalEnergy=True,
-                                     kineticEnergy=True, potentialEnergy=True, temperature=True))
-    simulation.reporters.append(openmm.app.DCDReporter(f'{Sname}.dcd', frequency), )
     simulation.step(run_steps)
+
 
     # Run
     # simulation.context.setParameter('kp_alignment',0)

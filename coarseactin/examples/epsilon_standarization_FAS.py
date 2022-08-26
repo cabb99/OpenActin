@@ -27,26 +27,27 @@ if __name__ == '__main__':
     """ The objective of this simulation is to simulate a range of epsilon and well sizes to determine the binding rate,
     the unbinding rate, the binding constant, and the possible conformations
     """
-    parameters = {"epsilon": [100, 80, 60, 40],  # Epsilons from 20 to 500. 20 is too low and 500 is too high
-                  "w1": [1.0, 2.0, 3.0, 4.0],  # Wells from 0.1 to 10. 0.1 seems to narrow and 10 too broad
+    parameters = {"epsilon": [100, 150, 200],  # Epsilons from 20 to 500. 20 is too low and 500 is too high
+                  "w1": [1.0, 2.0, 3.0],  # Wells from 0.1 to 10. 0.1 seems to narrow and 10 too broad
                   "w2_ratio": [0.1],
                   # It seems to work well with 0.1. #TODO make another experiment to check correct w2
-                  "aligned": [False, True],  # Constant may be different depending on the alignment/ size of filaments.
+                  "aligned": [False],  # Constant may be different depending on the alignment/ size of filaments.
                   # Aligned=True supposes that the filaments are long and/or had time to align.
-                  "actinLen": [75],  # Filaments with multiple binding sites
+                  #"actinLen": [75],  # Filaments with multiple binding sites
+                  "monomers":[225],
                   "disorder": [0],  # Not important
                   "box_size": [5000],  # Small box to make long simulations
                   "n_actins": [3],  # 3*75=225 ~ 3uM actin monomers
-                  "n_abps": [128, 32, 8],  # From 0 to 1.2uM, transition around 0.2 uM.
+                  "n_abps": [128],  # More abps to maximize kinetic statistics
                   # 90 monomers ~1.2uM, 15 monomers ~.2uM
                   "temperature": [300],
                   "system2D": [False],
                   "frequency": [100_000],
                   "run_time": [20],
-                  "run_steps": [100_000_000],
+                  "run_steps": [200_000_000],
                   "abp": ['FAS'],  # , 'AAC', 'CAM', 'CBP'],  # 'CBP', 'AAC2', 'CAM2'],
                   "simulation_platform": ["OpenCL"],
-                  "repetition": range(3)}
+                  "repetition": range(8)}
     test_parameters = {"simulation_platform": "CPU",
                        "epsilon": 60,
                        "w1": 3.0,
@@ -63,7 +64,7 @@ if __name__ == '__main__':
         except TypeError:
             pass
     # sjob = coarseactin.SlurmJobArray("Simulations_nots/Box/Box", parameters, test_parameters, job_id)
-    sjob = coarseactin.SlurmJobArray("Simulations/Box/Epsilon_Box3uM", parameters, test_parameters, job_id)
+    sjob = coarseactin.SlurmJobArray("Simulations/Box/Epsilon_BoxFAS", parameters, test_parameters, job_id)
     sjob.print_parameters()
     sjob.print_slurm_variables()
     sjob.write_csv()
@@ -75,7 +76,7 @@ if __name__ == '__main__':
     ##############
     aligned = sjob["aligned"]
     system2D = sjob["system2D"]
-    actinLen = sjob["actinLen"]
+    actinLen = int(sjob["monomers"]/sjob["n_actins"])
     Sname = sjob.name
     simulation_platform = sjob["simulation_platform"]
     if sjob['abp'] in ['CAM', 'CAM2']:
@@ -92,7 +93,7 @@ if __name__ == '__main__':
     full_model = []
     # Add unbound actins
     for i in range(sjob["n_actins"] // 2):
-        full_model += [coarseactin.create_actin(length=sjob["actinLen"],
+        full_model += [coarseactin.create_actin(length=actinLen,
                                                 translation=np.random.random(3) * sjob["box_size"],
                                                 rotation=strans.Rotation.random().as_matrix(),
                                                 abp=None)]
@@ -106,7 +107,7 @@ if __name__ == '__main__':
     full_model = []
     # Add bound abps
     for i in range(sjob["n_actins"] - sjob["n_actins"] // 2):
-        full_model += [coarseactin.create_actin(length=sjob["actinLen"],
+        full_model += [coarseactin.create_actin(length=actinLen,
                                                 translation=np.random.random(3) * sjob["box_size"],
                                                 rotation=strans.Rotation.random().as_matrix(),
                                                 abp=sjob['abp'])]

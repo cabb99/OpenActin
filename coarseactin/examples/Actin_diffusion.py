@@ -111,7 +111,12 @@ if __name__ == '__main__':
     time.ctime()
 
     # Create system
-    platform = openmm.Platform.getPlatformByName(simulation_platform)
+    try:
+        platform = openmm.Platform.getPlatformByName(simulation_platform)
+    except openmm.OpenMMException:
+        print(f"Platform not found {simulation_platform}, defaulting to CPU")
+        platform = openmm.Platform.getPlatformByName('CPU')
+
     s = coarseactin.CoarseActin.from_topology(f'{Sname}.cif', periodic_box=sjob['box_size'])
 
     # Add extra bonds for CBP
