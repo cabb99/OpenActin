@@ -178,17 +178,58 @@ class SlurmJobArray:
 
     def write_jobs(self, out=None, split=8):
         import inspect
-        print(inspect.stack())
+        #print(inspect.stack())
         caller_path = inspect.stack()[2].filename
-        job_list = ""
+        job_list = []
         _job_id = self.job_id
         for job in range(len(self)):
             self.job_id = job
-            job_list += f"python {caller_path} {self.job_id} > {self.name}.log\n"
+            job_list += [f"python {caller_path} {self.job_id} > {self.name}.log\n"]
         self.job_id = _job_id
         if out is None:
-            return job_list
+            return ''.join(job_list)
         else:
-            with open(out, 'w+') as out_file:
-                out_file.write(job_list)
+            lines_to_write = []
+            for i, line in enumerate(job_list):
+                lines_to_write += [line]
+                if i % split == split - 1:
+                    with open(f'{out}.{i // split}', 'w+') as out_file:
+                        out_file.write(''.join(lines_to_write))
+                    lines_to_write = []
+            if len(lines_to_write)>0:
+                with open(f'{out}.{i // split}', 'w+') as out_file:
+                    out_file.write(''.join(lines_to_write))
+
+        with open('slurm_run_array.sh', 'w+') as out_file:
+            out_file.write(f"""#!/bin/bash
+#SBATCH --account=commons
+#SBATCH --partition=commons
+#SBATCH --ntasks=8
+#SBATCH --cpus-per-task=6
+#SBATCH --threads-per-core=1
+#SBATCH --mem-per-cpu=3G
+#SBATCH --gres=gpu:8
+#SBATCH --array=0-{i // split}
+#SBATCH --time=24:00:00
+#SBATCH --export=ALL
+
+module purge
+module load  foss/2020b OpenMM Launcher_GPU
+
+echo "My job is running on: $SLURM_NODELIST"
+echo "Running on $SLURM_NNODES nodes."
+echo "Running on $SLURM_NPROCS processors."
+echo "SLURM_CPUS_PER_TASK: $SLURM_CPUS_PER_TASK"
+echo "my job started on: "
+date
+
+export LAUNCHER_WORKDIR=`pwd`
+export LAUNCHER_JOB_FILE=slurm_jobs.txt.${{SLURM_ARRAY_TASK_ID}}
+export LAUNCHER_BIND=1
+
+$LAUNCHER_DIR/paramrun
+
+echo "My job finished at:"
+date""")
+
 
