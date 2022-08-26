@@ -830,14 +830,30 @@ class CoarseActin:
         self.clearForces()
         # Harmonic Bonds
         harmonic_bond = openmm.HarmonicBondForce()
-        harmonic_bond.setForceGroup(1)
+        harmonic_bond.setForceGroup(0)
         if self.periodic_box is not None:
             harmonic_bond.setUsesPeriodicBoundaryConditions(True)
         else:
             harmonic_bond.setUsesPeriodicBoundaryConditions(False)
         for i, b in self.bonds.iterrows():
-            harmonic_bond.addBond(int(b['i']), int(b['j']), b['r0'] / 10., b['K'] * 4.184 * 100)
+            if b['potential']=='harmonic':
+                harmonic_bond.addBond(int(b['i']), int(b['j']), b['r0'] / 10., b['K'] * 4.184 * 100)
         self.system.addForce(harmonic_bond)
+
+        # Non-harmonic Bonds
+        non_harmonic_bond = openmm.CustomBondForce("eps*(step(rmin-r)*(rmin-r)^2+step(r-rmax)*(r-rmax)^2)")
+        non_harmonic_bond.setForceGroup(1)
+        non_harmonic_bond.addPerBondParameter('rmin')
+        non_harmonic_bond.addPerBondParameter('rmax')
+        non_harmonic_bond.addPerBondParameter('eps')
+        if self.periodic_box is not None:
+            non_harmonic_bond.setUsesPeriodicBoundaryConditions(True)
+        else:
+            non_harmonic_bond.setUsesPeriodicBoundaryConditions(False)
+        for i, b in self.bonds.iterrows():
+            if b['potential'] == 'non_harmonic':
+                non_harmonic_bond.addBond(int(b['i']), int(b['j']), [b['rmin'] / 10., b['rmax'] / 10., b['K'] * 4.184 * 100])
+        self.system.addForce(non_harmonic_bond)
 
         # Harmonic angles
         harmonic_angle = openmm.HarmonicAngleForce()
