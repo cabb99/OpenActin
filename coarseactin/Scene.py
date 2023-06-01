@@ -3,7 +3,7 @@ import numpy as np
 import io
 
 """
-Python library to allow easy handling of coordinate files for molecular dynamics using pandas DataFrames.
+Python library to allow easy handling of coordinate files for molecular dynamics using pandas DataFrames. okay
 """
 if __name__ == "__main__":
     import utils
