@@ -6,6 +6,7 @@ Handles the system class for openMM
 # Global imports
 import warnings
 
+#Import openmm
 try:
     import openmm
     import openmm.app
