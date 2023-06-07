@@ -232,7 +232,6 @@ if __name__ == '__main__':
 
     extra_bonds = pd.DataFrame(extra_bonds, columns=s.bonds.columns,
                                index=range(s.bonds.index.max() + 1, s.bonds.index.max() + 1 + len(extra_bonds)))
-    
     s.bonds = pd.concat([s.bonds, extra_bonds], ignore_index=True)
 
     # Check that the bonds correspond with the correct molecule
