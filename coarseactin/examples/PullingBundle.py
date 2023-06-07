@@ -42,7 +42,7 @@ if __name__ == '__main__':
                   # "runSteps":[10000000],
                   "abp": ['FAS', 'CAM', 'CBP', 'AAC', 'AAC2', 'CAM2'],
                   "simulation_platform": ["OpenCL"]}
-    test_parameters = {"simulation_platform": "CPU",
+    test_parameters = {"simulation_platform": "OpenCL",
                        "abp": 'CAM',
                        "layers": 2,
                        "epsilon": 100,
@@ -93,6 +93,9 @@ if __name__ == '__main__':
         colliding_distance = d/4 #TODO: calculate correct distance CAM
 
     # Set the points in the actin network
+    
+    # nusayba- this is where the cactin + crosslinker being made 
+
     import random
 
     full_model = []
