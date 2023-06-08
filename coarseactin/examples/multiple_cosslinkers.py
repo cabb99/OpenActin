@@ -13,8 +13,8 @@
 #SBATCH --mem=16G
 
 import sys # Import the sys module for interacting with the Python interpreter
-# sys is a module that gives access to variables and functions
-import coarseactin # imports custom module called coarseactin
+# sys is a module that gives access to variables and ufnctions
+import coarseactin # imports custom module called courseactin
 import pandas as pd # imports pandas library, excel for python
 import numpy as np # imports the numpy library, matlab for python
 import scipy.spatial.transform as strans  # Import the transform module from scipy.spatial for spatial transformations
@@ -22,21 +22,25 @@ import scipy.spatial.distance as sdist  # Import the distance module from scipy.
 import itertools # Import the itertools module for efficient looping and combination generation
 
 if __name__ == '__main__': # makes sure that the following code is executed only if the script is run directly, not importad as a 
-    # module
+    # module 
+    # module refers to a file containing a collection of Pythonacode that is organized for a particular purpose 
     ###################################
     # Setting Conditions for simulation#
     ###################################
     """ The objective of this experiment is to simulate a big system containing multiple filaments and abps 
     and observe their behavior"""
-    parameters = {"epsilon": [100, 75, 50, 25],
+    parameters = {"epsilon": [100], # each 'key' (for example epsilson) refers to a specefic value and 
+                #the corresponding value so (100) refers to the possible list of values the parameter can take
                   "aligned": [False],
                   "actinLen": [100],
                   # "layers": [3],
                   # "repetition":range(3),
                   "disorder": [0],
                   "box_size": [10000],
-                  "n_actins": [0],
-                  "n_abps": [1],
+                  "n_actins": [20],
+                  "n_FAS": [20],
+                  "n_AAC": [20],
+                  "n_CAM":[20],
                   "temperature": [300],
                   "system2D": [False],
                   "frequency": [1000],
@@ -44,6 +48,8 @@ if __name__ == '__main__': # makes sure that the following code is executed only
                   #"run_steps":[10000000],
                   "abp": ['FAS', 'CAM', 'CBP', 'AAC', 'AAC2', 'CAM2'],
                   "simulation_platform": ["OpenCL"]}
+    
+    # test_parameters is used 
     test_parameters = {"simulation_platform": "CUDA",
                        "frequency": 1,
                        "run_time": 0.01,
@@ -52,12 +58,17 @@ if __name__ == '__main__': # makes sure that the following code is executed only
                        #"abp": 'CAM',
                        #"CaMKII_Force": 'multigaussian',
                        }
-    job_id = 0
-    if len(sys.argv) > 1:
-        try:
-            job_id = int(sys.argv[1])
-        except TypeError:
-            pass
+    job_id = 0 # used to capture a job identifier if provided as a command-line 
+    # argument 
+
+    # # 
+    # if len(sys.argv) > 1: #argv is a parameter defined in the 'sys' module of the Python standard library
+    #     # makes sure that atleast one command-line arguments passed when executing the script
+    #     try:
+    #         job_id = int(sys.argv[1])
+    #     except TypeError:
+    #         pass
+  
     sjob = coarseactin.SlurmJobArray("Simulations/Box/Box", parameters, test_parameters, job_id)
     sjob.print_parameters()
     sjob.print_slurm_variables()
@@ -91,15 +102,26 @@ if __name__ == '__main__': # makes sure that the following code is executed only
                        translation=np.random.random(3)*sjob["box_size"],
                        rotation=strans.Rotation.random().as_matrix(),
                        abp=None)]
-    #Add ABPs
-    for i in range(sjob["n_abps"]):
+    #Add FAS
+    for i in range(sjob["n_FAS"]):
         full_model += [coarseactin.create_abp(translation=np.random.random(3)*sjob["box_size"],
                        rotation=strans.Rotation.random().as_matrix(),
-                       abp=sjob['abp'])]
+                       abp="FAS")]
+        
+    #Add AAC
+    for i in range(sjob["n_AAC"]):
+        full_model += [coarseactin.create_abp(translation=np.random.random(3)*sjob["box_size"],
+                       rotation=strans.Rotation.random().as_matrix(),
+                       abp="AAC")]
 
+    #Add CAM
+    for i in range(sjob["n_CAM"]):
+        full_model += [coarseactin.create_abp(translation=np.random.random(3)*sjob["box_size"],
+                       rotation=strans.Rotation.random().as_matrix(),
+                       abp="CAM")]
+        
     print('Concatenate chains')
     full_model = coarseactin.Scene.concatenate(full_model)
-
     full_model = coarseactin.Scene(full_model.sort_values(['chainID', 'resSeq', 'name']))
     full_model.loc[:, 'chain_resid'] = full_model[['chainID', 'resSeq']].astype(str).T.apply(
         lambda x: '_'.join([str(a) for a in x]))
