@@ -29,8 +29,10 @@ if __name__ == '__main__': # makes sure that the following code is executed only
     ###################################
     """ The objective of this experiment is to simulate a big system containing multiple filaments and abps 
     and observe their behavior"""
-    parameters = {"epsilon": [100], # each 'key' (for example epsilson) refers to a specefic value and 
+    parameters = {"epsilon_ABP": [75], # each 'key' (for example epsilson) refers to a specefic value and 
                 #the corresponding value so (100) refers to the possible list of values the parameter can take
+                # affinity of the crosslinkers to the binding site  
+                  "epsilon_CAM": [100],
                   "aligned": [False],
                   "actinLen": [100],
                   # "layers": [3],
@@ -38,12 +40,12 @@ if __name__ == '__main__': # makes sure that the following code is executed only
                   "disorder": [0],
                   "box_size": [10000],
                   "n_actins": [20],
-                  "n_FAS": [20],
-                  "n_AAC": [20],
-                  "n_CAM":[20],
+                  "n_FAS": [200],
+                  "n_AAC": [200],
+                  "n_CAM":[200],
                   "temperature": [300],
                   "system2D": [False],
-                  "frequency": [1000],
+                  "frequency": [10000],
                   "run_time": [20],
                   #"run_steps":[10000000],
                   "abp": ['FAS', 'CAM', 'CBP', 'AAC', 'AAC2', 'CAM2'],
@@ -54,10 +56,13 @@ if __name__ == '__main__': # makes sure that the following code is executed only
                        "frequency": 1,
                        "run_time": 0.01,
                        "abp":'CBP',
-                       "epsilon":0,
+                       # "epsilon":0,
                        #"abp": 'CAM',
                        #"CaMKII_Force": 'multigaussian',
                        }
+    
+
+   
     job_id = 0 # used to capture a job identifier if provided as a command-line 
     # argument 
 
@@ -69,7 +74,7 @@ if __name__ == '__main__': # makes sure that the following code is executed only
     #     except TypeError:
     #         pass
   
-    sjob = coarseactin.SlurmJobArray("Simulations/Box/Box", parameters, test_parameters, job_id)
+    sjob = coarseactin.SlurmJobArray("Simulations/Box/Box4", parameters, test_parameters, job_id) #This line creates an instance of the SlurmJobArray class from the coarseactin module. The constructor of the SlurmJobArray class takes four arguments: a file path "Simulations/Box/Boxv3", dictionaries parameters and test_parameters, and the job_id variable. This instance of sjob represents a job array for SLURM job submission.
     sjob.print_parameters()
     sjob.print_slurm_variables()
     sjob.write_csv()
@@ -171,7 +176,7 @@ if __name__ == '__main__': # makes sure that the following code is executed only
                        s.bonds['molecule'].isin(['Actin-ADP', 'ABP', 'CaMKII'])]
 
     print(s.system.getDefaultPeriodicBoxVectors())
-    s.setForces(AlignmentConstraint=aligned, PlaneConstraint=system2D, CaMKII_Force=camkii_force)
+    s.setForces(AlignmentConstraint=aligned, PlaneConstraint=system2D, forces=['multigaussian','abp'])
     top = openmm.app.PDBxFile(f'{Sname}.cif')
     coord = openmm.app.PDBxFile(f'{Sname}.cif')
 
@@ -182,7 +187,10 @@ if __name__ == '__main__': # makes sure that the following code is executed only
     simulation.context.setPositions(coord.positions)
 
     # Modify parameters
-    simulation.context.setParameter("g_eps", sjob["epsilon"])
+    simulation.context.setParameter("g_eps_ABP", sjob["epsilon_ABP"])
+    simulation.context.setParameter("g_eps", sjob["epsilon_CAM"])
+    # simulation.context.setParameter("g_eps_ABP", sjob["epsilon_ABP"])
+
 
     frequency = sjob["frequency"]
     # Add reporters
@@ -196,7 +204,7 @@ if __name__ == '__main__': # makes sure that the following code is executed only
 
     #Change simulation parameters
     #simulation.context.setParameter("w1", 5)
-    simulation.context.setParameter("g_eps", sjob['epsilon'])
+    #  simulation.context.setParameter("g_eps", sjob['epsilon'])
 
     # Print initial energy
     state = simulation.context.getState(getEnergy=True)

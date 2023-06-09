@@ -826,7 +826,7 @@ class CoarseActin:
         """ Removes all forces from the system """
         [self.system.removeForce(0) for i, f in enumerate(self.system.getForces())]
 
-    def setForces(self, PlaneConstraint=False, CaMKII_Force='multigaussian', AlignmentConstraint=False):
+    def setForces(self, PlaneConstraint=False, forces=['multigaussian'], AlignmentConstraint=False):
         """ Adds the forces to the system """
         self.clearForces()
         # Harmonic Bonds
@@ -917,7 +917,9 @@ class CoarseActin:
         Cc = self.atom_list[self.atom_list['atom_name'] == 'Cc'].index
         comb = [(0, 6), (1, 7), (2, 8), (3, 9), (4, 10), (5, 11)]
 
-        if CaMKII_Force=='multigaussian':
+        if 'multigaussian' in forces: 
+            print('multigaussian')
+
             for i, j in comb:
                 gaussian = openmm.CustomHbondForce("-g_eps*g1;"
                                                          "g1=(exp(-dd/w1)+exp(-dd/w2))/2;"
@@ -949,7 +951,9 @@ class CoarseActin:
                     gaussian.addDonor(d1, d2, d3)
 
                 self.system.addForce(gaussian)
-        elif CaMKII_Force=='doublegaussian':
+        if 'doublegaussian' in forces:
+            print('doublegaussian')
+
             for i, j in comb:
                 gaussian = openmm.CustomHbondForce("-g_eps*g1;"
                                                          "g1=(exp(-dd/w1)+exp(-dd/w2))/2;"
@@ -980,7 +984,9 @@ class CoarseActin:
                     gaussian.addDonor(d1, d2, d3)
 
                 self.system.addForce(gaussian)
-        if CaMKII_Force=='singlegaussian':
+        if 'singlegaussian' in forces:
+            print('singleguassian')
+
             gaussian = openmm.CustomHbondForce("-g_eps*g1;"
                                                      "g1=(exp(-dd/w1)+exp(-dd/w2))/2;"
                                                      "dd= distance(a1,d1);")
@@ -1008,8 +1014,9 @@ class CoarseActin:
                 gaussian.addDonor(d1, -1, -1)
 
             self.system.addForce(gaussian)
-        elif CaMKII_Force == 'abp':
-            gaussian = openmm.CustomHbondForce("-g_eps*g1;"
+        if 'abp' in forces: 
+            print('ABP')
+            gaussian = openmm.CustomHbondForce("-g_eps_ABP*g1;"
                                                "g1=(exp(-dd/w1)+exp(-dd/w2))/2;"
                                                "dd=(dist1^2+dist2^2+dist3^2)/3;"
                                                "dist1= distance(a1,d1);"
@@ -1021,7 +1028,7 @@ class CoarseActin:
                 gaussian.setNonbondedMethod(gaussian.CutoffPeriodic)
             else:
                 gaussian.setNonbondedMethod(gaussian.CutoffNonPeriodic)
-            gaussian.addGlobalParameter('g_eps', 100)  # Energy minimum
+            gaussian.addGlobalParameter('g_eps_ABP', 100)  # Energy minimum
             gaussian.addGlobalParameter('w1', 5.0)  # well1 width
             gaussian.addGlobalParameter('w2', 0.5)  # well2 width
             gaussian.setCutoffDistance(12)
