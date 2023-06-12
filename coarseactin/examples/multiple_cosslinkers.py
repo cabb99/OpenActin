@@ -29,7 +29,7 @@ if __name__ == '__main__': # makes sure that the following code is executed only
     ###################################
     """ The objective of this experiment is to simulate a big system containing multiple filaments and abps 
     and observe their behavior"""
-    parameters = {"epsilon_ABP": [75], # each 'key' (for example epsilson) refers to a specefic value and 
+    parameters = {"epsilon_ABP": [100], # each 'key' (for example epsilson) refers to a specefic value and 
                 #the corresponding value so (100) refers to the possible list of values the parameter can take
                 # affinity of the crosslinkers to the binding site  
                   "epsilon_CAM": [100],
@@ -42,7 +42,7 @@ if __name__ == '__main__': # makes sure that the following code is executed only
                   "n_actins": [20],
                   "n_FAS": [200],
                   "n_AAC": [200],
-                  "n_CAM":[200],
+                  "n_CAM":[0],
                   "temperature": [300],
                   "system2D": [False],
                   "frequency": [10000],
@@ -74,7 +74,7 @@ if __name__ == '__main__': # makes sure that the following code is executed only
     #     except TypeError:
     #         pass
   
-    sjob = coarseactin.SlurmJobArray("Simulations/Box/Boxv4", parameters, test_parameters, job_id) #This line creates an instance of the SlurmJobArray class from the coarseactin module. The constructor of the SlurmJobArray class takes four arguments: a file path "Simulations/Box/Boxv3", dictionaries parameters and test_parameters, and the job_id variable. This instance of sjob represents a job array for SLURM job submission.
+    sjob = coarseactin.SlurmJobArray("Simulations/Box/Boxv5", parameters, test_parameters, job_id) #This line creates an instance of the SlurmJobArray class from the coarseactin module. The constructor of the SlurmJobArray class takes four arguments: a file path "Simulations/Box/Boxv3", dictionaries parameters and test_parameters, and the job_id variable. This instance of sjob represents a job array for SLURM job submission.
     sjob.print_parameters()
     sjob.print_slurm_variables()
     sjob.write_csv()
@@ -176,7 +176,12 @@ if __name__ == '__main__': # makes sure that the following code is executed only
                        s.bonds['molecule'].isin(['Actin-ADP', 'ABP', 'CaMKII'])]
 
     print(s.system.getDefaultPeriodicBoxVectors())
-    s.setForces(AlignmentConstraint=aligned, PlaneConstraint=system2D, forces=['multigaussian','abp'])
+
+    if sjob["n_CAM"]>0:
+        s.setForces(AlignmentConstraint=aligned, PlaneConstraint=system2D, forces=['multigaussian','abp'])
+    else: 
+        s.setForces(AlignmentConstraint=aligned, PlaneConstraint=system2D, forces=['abp'])
+
     top = openmm.app.PDBxFile(f'{Sname}.cif')
     coord = openmm.app.PDBxFile(f'{Sname}.cif')
 
@@ -187,8 +192,10 @@ if __name__ == '__main__': # makes sure that the following code is executed only
     simulation.context.setPositions(coord.positions)
 
     # Modify parameters
+    if sjob["n_CAM"]>0:
+        simulation.context.setParameter("g_eps", sjob["epsilon_CAM"])
+    
     simulation.context.setParameter("g_eps_ABP", sjob["epsilon_ABP"])
-    simulation.context.setParameter("g_eps", sjob["epsilon_CAM"])
     # simulation.context.setParameter("g_eps_ABP", sjob["epsilon_ABP"])
 
 
