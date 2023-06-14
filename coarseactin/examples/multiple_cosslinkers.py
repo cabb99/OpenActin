@@ -9,7 +9,9 @@
 #SBATCH --cpus-per-task=2
 #SBATCH --gres=gpu:1
 #SBATCH --export=ALL
-#SBATCH --array=0-23
+#SBATCH --mail-user=ne25@rice.edu
+#SBATCH --mail-type=ALL
+#SBATCH --array=0-5
 #SBATCH --mem=16G
 
 import sys # Import the sys module for interacting with the Python interpreter
@@ -33,10 +35,10 @@ if __name__ == '__main__': # makes sure that the following code is executed only
                 #the corresponding value so (100) refers to the possible list of values the parameter can take
                 # affinity of the crosslinkers to the binding site  
                   "epsilon_CAM": [100],
-                  "aligned": [True],
+                  "aligned": [True,False],
                   "actinLen": [100],
                   # "layers": [3],
-                  # "repetition":range(3),
+                  "repetition":range(3),
                   "disorder": [0],
                   "box_size": [10000],
                   "n_actins": [20],
