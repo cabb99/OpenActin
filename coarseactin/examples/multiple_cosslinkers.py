@@ -47,8 +47,8 @@ if __name__ == '__main__': # makes sure that the following code is executed only
                   "system2D": [False],
                   "frequency": [10000],
                   "run_time": [20],
-                  #"run_steps":[10000000],
-                  # "abp": ['FAS', 'CAM', 'CBP', 'AAC', 'AAC2', 'CAM2'],
+                  # "run_steps":[10000000], # nusayba changed to run
+                  # "abp": ['FAS', 'CAM', 'CBP', 'AAC', 'AAC2', 'CAM2'], #Nusayba changed to run
                   "simulation_platform": ["OpenCL"]}
     
     # test_parameters is used 
@@ -57,7 +57,7 @@ if __name__ == '__main__': # makes sure that the following code is executed only
                        "run_time": 0.01,
                       # "abp":'CBP',
                        # "epsilon":0,
-                       #"abp": 'CAM',
+                      #  "abp": 'CAM', #Nusayba changed to run
                        #"CaMKII_Force": 'multigaussian',
                        }
     
@@ -75,6 +75,7 @@ if __name__ == '__main__': # makes sure that the following code is executed only
     #         pass
   
     sjob = coarseactin.SlurmJobArray("Simulations/Box/Boxv6", parameters, test_parameters, job_id) #This line creates an instance of the SlurmJobArray class from the coarseactin module. The constructor of the SlurmJobArray class takes four arguments: a file path "Simulations/Box/Boxv3", dictionaries parameters and test_parameters, and the job_id variable. This instance of sjob represents a job array for SLURM job submission.
+    #sjob = coarseactin.SlurmJobArray("/Users/nusaybaelali/documents/fis/coarsegrainedactin/simulations/box/boxv6", parameters, test_parameters, job_id)
     sjob.print_parameters()
     sjob.print_slurm_variables()
     sjob.write_csv()
@@ -89,10 +90,10 @@ if __name__ == '__main__': # makes sure that the following code is executed only
     actinLen = sjob["actinLen"]
     Sname = sjob.name
     simulation_platform = sjob["simulation_platform"]
-    if sjob['abp'] in ['CAM','CAM2']:
-        camkii_force='multigaussian'
-    else:
-        camkii_force = 'abp'
+    # if sjob['abp'] in ['CAM','CAM2']:
+    #     camkii_force='multigaussian'
+    # else:
+    #     camkii_force = 'abp'
 
     ###################
     # Build the model #
