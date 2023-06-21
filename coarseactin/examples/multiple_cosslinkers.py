@@ -1,6 +1,5 @@
-#!/home/cab22/miniconda3/bin/python
+#!/home/ne25/miniconda3/envs/openmm/bin/python
 #SBATCH --account=commons
-#SBATCH --output ./Simulations_nots/Box/slurm-%A_%a.out
 #SBATCH --export=All
 #SBATCH --partition=commons
 #SBATCH --time=24:00:00
@@ -65,7 +64,7 @@ if __name__ == '__main__': # makes sure that the following code is executed only
     
 
    
-    job_id = 0 # used to capture a job identifier if provided as a command-line 
+    #job_id = 0 # used to capture a job identifier if provided as a command-line 
     # argument 
 
     # # 
@@ -76,7 +75,7 @@ if __name__ == '__main__': # makes sure that the following code is executed only
     #     except TypeError:
     #         pass
   
-    sjob = coarseactin.SlurmJobArray("Simulations/Box/Boxv6", parameters, test_parameters, job_id) #This line creates an instance of the SlurmJobArray class from the coarseactin module. The constructor of the SlurmJobArray class takes four arguments: a file path "Simulations/Box/Boxv3", dictionaries parameters and test_parameters, and the job_id variable. This instance of sjob represents a job array for SLURM job submission.
+    sjob = coarseactin.SlurmJobArray("Simulations_scratch/Box/Boxv6", parameters, test_parameters) #This line creates an instance of the SlurmJobArray class from the coarseactin module. The constructor of the SlurmJobArray class takes four arguments: a file path "Simulations/Box/Boxv3", dictionaries parameters and test_parameters, and the job_id variable. This instance of sjob represents a job array for SLURM job submission.
     #sjob = coarseactin.SlurmJobArray("/Users/nusaybaelali/documents/fis/coarsegrainedactin/simulations/box/boxv6", parameters, test_parameters, job_id)
     sjob.print_parameters()
     sjob.print_slurm_variables()
