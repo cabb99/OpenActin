@@ -50,7 +50,7 @@ if __name__ == '__main__': # makes sure that the following code is executed only
                   "run_time": [20],
                   # "run_steps":[10000000], # nusayba changed to run
                   # "abp": ['FAS', 'CAM', 'CBP', 'AAC', 'AAC2', 'CAM2'], #Nusayba changed to run
-                  "simulation_platform": ["OpenCL"]}
+                  "simulation_platform": ["CPU"]}
     
     # test_parameters is used 
     test_parameters = {"simulation_platform": "CUDA",
@@ -75,7 +75,7 @@ if __name__ == '__main__': # makes sure that the following code is executed only
     #     except TypeError:
     #         pass
   
-    sjob = coarseactin.SlurmJobArray("Simulations_scratch/Box_Repetitions/Boxv7", parameters, test_parameters) #This line creates an instance of the SlurmJobArray class from the coarseactin module. The constructor of the SlurmJobArray class takes four arguments: a file path "Simulations/Box/Boxv3", dictionaries parameters and test_parameters, and the job_id variable. This instance of sjob represents a job array for SLURM job submission.
+    sjob = coarseactin.SlurmJobArray("Simulations_scratch/Box_electrostatics/Boxv1", parameters, test_parameters) #This line creates an instance of the SlurmJobArray class from the coarseactin module. The constructor of the SlurmJobArray class takes four arguments: a file path "Simulations/Box/Boxv3", dictionaries parameters and test_parameters, and the job_id variable. This instance of sjob represents a job array for SLURM job submission.
     #sjob = coarseactin.SlurmJobArray("/Users/nusaybaelali/documents/fis/coarsegrainedactin/simulations/box/boxv6", parameters, test_parameters, job_id)
     sjob.print_parameters()
     sjob.print_slurm_variables()
@@ -183,6 +183,30 @@ if __name__ == '__main__': # makes sure that the following code is executed only
         s.setForces(AlignmentConstraint=aligned, PlaneConstraint=system2D, forces=['multigaussian','abp'])
     else: 
         s.setForces(AlignmentConstraint=aligned, PlaneConstraint=system2D, forces=['abp'])
+
+    
+    # Add electrostatics
+    electrostatics = openmm.CustomNonbondedForce("epsilon_electrostatics*q1*q2/r*exp(-kappa_electrostatics*r)") # Debye-Huckel (kJ/mol)
+    if s.periodic_box is not None:
+        electrostatics.setNonbondedMethod(electrostatics.CutoffPeriodic)
+    else:
+        electrostatics.setNonbondedMethod(electrostatics.CutoffNonPeriodic)
+    
+    electrostatics.addPerParticleParameter("q")
+    electrostatics.addGlobalParameter("epsilon_electrostatics",1) # Find good values (# Look for other papers with a similar equation, Columb, Debye-Huckel, etc.)(nm/charge2)
+    electrostatics.addGlobalParameter("kappa_electrostatics",1) # Find good values (# Screening length of water (related to dielectrics)) (nm-1)
+    electrostatics.setCutoffDistance(40*openmm.unit.nanometers)
+    electrostatics.setUseLongRangeCorrection(True)
+    for _, a in s.atom_list.iterrows():
+        if a.residue_name in ['ACT','ACD']:
+            q=-1 #Find good values (Charge or actin per subunit or per monomer) Charge units
+        else:
+            q=0
+        electrostatics.addParticle([q]) 
+    electrostatics.createExclusionsFromBonds(s.bonds[['i', 'j']].values.tolist(), 3)
+    s.system.addForce(electrostatics)
+    
+    1/0
 
     top = openmm.app.PDBxFile(f'{Sname}.cif')
     coord = openmm.app.PDBxFile(f'{Sname}.cif')
