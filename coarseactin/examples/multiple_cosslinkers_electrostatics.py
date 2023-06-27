@@ -193,13 +193,13 @@ if __name__ == '__main__': # makes sure that the following code is executed only
         electrostatics.setNonbondedMethod(electrostatics.CutoffNonPeriodic)
     
     electrostatics.addPerParticleParameter("q")
-    electrostatics.addGlobalParameter("epsilon_electrostatics",1) # Find good values (# Look for other papers with a similar equation, Columb, Debye-Huckel, etc.)(nm/charge2)
-    electrostatics.addGlobalParameter("kappa_electrostatics",1) # Find good values (# Screening length of water (related to dielectrics)) (nm-1)
+    electrostatics.addGlobalParameter("epsilon_electrostatics",1.736385125) # Calculated by Nusayba and Carlos Find good values (# Look for other papers with a similar equation, Columb, Debye-Huckel, etc.)(nm/charge2)
+    electrostatics.addGlobalParameter("kappa_electrostatics",1) #  https://doi.org/10.3389/fcell.2023.1071977, Find good values (# Screening length of water (related to dielectrics)) (nm-1)
     electrostatics.setCutoffDistance(40*openmm.unit.nanometers)
     electrostatics.setUseLongRangeCorrection(True)
     for _, a in s.atom_list.iterrows():
         if a.residue_name in ['ACT','ACD']:
-            q=-1 #Find good values (Charge or actin per subunit or per monomer) Charge units
+            q=-10 #Calculated by counting the charge of the sequence. Find good values (Charge or actin per subunit or per monomer) Charge units
         else:
             q=0
         electrostatics.addParticle([q]) 
