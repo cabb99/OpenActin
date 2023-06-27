@@ -50,7 +50,7 @@ if __name__ == '__main__': # makes sure that the following code is executed only
                   "run_time": [20],
                   # "run_steps":[10000000], # nusayba changed to run
                   # "abp": ['FAS', 'CAM', 'CBP', 'AAC', 'AAC2', 'CAM2'], #Nusayba changed to run
-                  "simulation_platform": ["CPU"]}
+                  "simulation_platform": ["OpenCL"]}
     
     # test_parameters is used 
     test_parameters = {"simulation_platform": "CUDA",
