@@ -206,8 +206,6 @@ if __name__ == '__main__': # makes sure that the following code is executed only
     electrostatics.createExclusionsFromBonds(s.bonds[['i', 'j']].values.tolist(), 3)
     s.system.addForce(electrostatics)
     
-    1/0
-
     top = openmm.app.PDBxFile(f'{Sname}.cif')
     coord = openmm.app.PDBxFile(f'{Sname}.cif')
 
