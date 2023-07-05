@@ -35,14 +35,14 @@ if __name__ == '__main__': # makes sure that the following code is executed only
                 # affinity of the crosslinkers to the binding site  
                   "epsilon_CAM": [100],
                   "aligned": [True],
-                  "actinLen": [100],
+                  "actinLen": [100*2],
                   # "layers": [3],
                   "repetition":range(3),
                   "disorder": [0],
-                  "box_size": [10000],
-                  "n_actins": [20],
-                  "n_FAS": [200],
-                  "n_AAC": [200],
+                  "box_size": [10000*2],
+                  "n_actins": [20*4],
+                  "n_FAS": [200*8],
+                  "n_AAC": [200*8],
                   "n_CAM":[0],
                   "temperature": [300],
                   "system2D": [False],
@@ -76,7 +76,7 @@ if __name__ == '__main__': # makes sure that the following code is executed only
     #     except TypeError:
     #         pass
   
-    sjob = coarseactin.SlurmJobArray("Simulations_scratch/Box_electrostatics/Boxv2", parameters, test_parameters) #This line creates an instance of the SlurmJobArray class from the coarseactin module. The constructor of the SlurmJobArray class takes four arguments: a file path "Simulations/Box/Boxv3", dictionaries parameters and test_parameters, and the job_id variable. This instance of sjob represents a job array for SLURM job submission.
+    sjob = coarseactin.SlurmJobArray("Simulations_scratch/Box_electrostatics/Boxv2_large", parameters, test_parameters) #This line creates an instance of the SlurmJobArray class from the coarseactin module. The constructor of the SlurmJobArray class takes four arguments: a file path "Simulations/Box/Boxv3", dictionaries parameters and test_parameters, and the job_id variable. This instance of sjob represents a job array for SLURM job submission.
     #sjob = coarseactin.SlurmJobArray("/Users/nusaybaelali/documents/fis/coarsegrainedactin/simulations/box/boxv6", parameters, test_parameters, job_id)
     sjob.print_parameters()
     sjob.print_slurm_variables()
