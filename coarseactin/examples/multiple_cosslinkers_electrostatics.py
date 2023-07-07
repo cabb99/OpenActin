@@ -10,7 +10,7 @@
 #SBATCH --export=ALL
 #SBATCH --mail-user=ne25@rice.edu
 #SBATCH --mail-type=ALL
-#SBATCH --array=0-8
+#SBATCH --array=0-5
 #SBATCH --mem=16G
 
 import sys # Import the sys module for interacting with the Python interpreter
@@ -48,7 +48,8 @@ if __name__ == '__main__': # makes sure that the following code is executed only
                   "system2D": [False],
                   "frequency": [10000],
                   "run_time": [20],
-                  "epsilon_electrostatics":[0.1,1,10],
+                  "epsilon_electrostatics":[1],
+                  "actinin_electrostatics":[True,False], 
                   # "run_steps":[10000000], # nusayba changed to run
                   # "abp": ['FAS', 'CAM', 'CBP', 'AAC', 'AAC2', 'CAM2'], #Nusayba changed to run
                   "simulation_platform": ["OpenCL"]}
@@ -76,7 +77,7 @@ if __name__ == '__main__': # makes sure that the following code is executed only
     #     except TypeError:
     #         pass
   
-    sjob = coarseactin.SlurmJobArray("Simulations_scratch/Box_electrostatics/Boxv2", parameters, test_parameters) #This line creates an instance of the SlurmJobArray class from the coarseactin module. The constructor of the SlurmJobArray class takes four arguments: a file path "Simulations/Box/Boxv3", dictionaries parameters and test_parameters, and the job_id variable. This instance of sjob represents a job array for SLURM job submission.
+    sjob = coarseactin.SlurmJobArray("Simulations_scratch/Box_electrostatics_chargeFAS/Run1", parameters, test_parameters) #This line creates an instance of the SlurmJobArray class from the coarseactin module. The constructor of the SlurmJobArray class takes four arguments: a file path "Simulations/Box/Boxv3", dictionaries parameters and test_parameters, and the job_id variable. This instance of sjob represents a job array for SLURM job submission.
     #sjob = coarseactin.SlurmJobArray("/Users/nusaybaelali/documents/fis/coarsegrainedactin/simulations/box/boxv6", parameters, test_parameters, job_id)
     sjob.print_parameters()
     sjob.print_slurm_variables()
@@ -200,7 +201,14 @@ if __name__ == '__main__': # makes sure that the following code is executed only
     electrostatics.setUseLongRangeCorrection(True)
     for _, a in s.atom_list.iterrows():
         if a.residue_name in ['ACT','ACD']:
-            q=-10 #Calculated by counting the charge of the sequence. Find good values (Charge or actin per subunit or per monomer) Charge units
+            q=-2.5 #Calculated by counting the charge of the sequence. Find good values (Charge or actin per subunit or per monomer) Charge units
+        elif a.residue_name in ['FAS']:
+            q=3.3/6 #Calculated by counting the charge of the sequence. Find good values (Charge or actin per subunit or per monomer) Charge units
+        elif a.residue_name in ['AAC']:
+            if sjob["actinin_electrostatics"]:
+                q=-31.0/3 #Calculated by counting the charge of the sequence. Find good values (Charge or actin per subunit or per monomer) Charge units
+            else:
+                q=0
         else:
             q=0
         electrostatics.addParticle([q]) 
