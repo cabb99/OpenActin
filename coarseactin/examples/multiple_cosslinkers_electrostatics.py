@@ -48,7 +48,7 @@ if __name__ == '__main__': # makes sure that the following code is executed only
                   "system2D": [False],
                   "frequency": [10000],
                   "run_time": [20],
-                  "epsilon_electrostatics":[1],
+                  "epsilon_electrostatics":[1,0],
                   "actinin_electrostatics":[True,False], 
                   # "run_steps":[10000000], # nusayba changed to run
                   # "abp": ['FAS', 'CAM', 'CBP', 'AAC', 'AAC2', 'CAM2'], #Nusayba changed to run
