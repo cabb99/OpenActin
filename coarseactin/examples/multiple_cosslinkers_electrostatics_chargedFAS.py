@@ -10,7 +10,7 @@
 #SBATCH --export=ALL
 #SBATCH --mail-user=ne25@rice.edu
 #SBATCH --mail-type=ALL
-#SBATCH --array=0-5
+#SBATCH --array=0-11 
 #SBATCH --mem=16G
 
 import sys # Import the sys module for interacting with the Python interpreter
@@ -34,12 +34,12 @@ if __name__ == '__main__': # makes sure that the following code is executed only
                 #the corresponding value so (100) refers to the possible list of values the parameter can take
                 # affinity of the crosslinkers to the binding site  
                   "epsilon_CAM": [100],
-                  "aligned": [True,False],
+                  "aligned": [True],
                   "actinLen": [100],
                   # "layers": [3],
                   "repetition":range(3),
                   "disorder": [0],
-                  "box_size": [10000],
+                  "box_size": [10000,20000],
                   "n_actins": [20],
                   "n_FAS": [200],
                   "n_AAC": [200],
@@ -48,6 +48,8 @@ if __name__ == '__main__': # makes sure that the following code is executed only
                   "system2D": [False],
                   "frequency": [10000],
                   "run_time": [20],
+                  "epsilon_electrostatics":[1],
+                  "actinin_electrostatics":[True,False], 
                   # "run_steps":[10000000], # nusayba changed to run
                   # "abp": ['FAS', 'CAM', 'CBP', 'AAC', 'AAC2', 'CAM2'], #Nusayba changed to run
                   "simulation_platform": ["OpenCL"]}
@@ -75,7 +77,7 @@ if __name__ == '__main__': # makes sure that the following code is executed only
     #     except TypeError:
     #         pass
   
-    sjob = coarseactin.SlurmJobArray("Simulations_scratch/Box_Repetitions/Boxv7", parameters, test_parameters) #This line creates an instance of the SlurmJobArray class from the coarseactin module. The constructor of the SlurmJobArray class takes four arguments: a file path "Simulations/Box/Boxv3", dictionaries parameters and test_parameters, and the job_id variable. This instance of sjob represents a job array for SLURM job submission.
+    sjob = coarseactin.SlurmJobArray("Simulations_scratch/Box_chargedFAS/Run1", parameters, test_parameters) #This line creates an instance of the SlurmJobArray class from the coarseactin module. The constructor of the SlurmJobArray class takes four arguments: a file path "Simulations/Box/Boxv3", dictionaries parameters and test_parameters, and the job_id variable. This instance of sjob represents a job array for SLURM job submission.
     #sjob = coarseactin.SlurmJobArray("/Users/nusaybaelali/documents/fis/coarsegrainedactin/simulations/box/boxv6", parameters, test_parameters, job_id)
     sjob.print_parameters()
     sjob.print_slurm_variables()
@@ -91,6 +93,15 @@ if __name__ == '__main__': # makes sure that the following code is executed only
     actinLen = sjob["actinLen"]
     Sname = sjob.name
     simulation_platform = sjob["simulation_platform"]
+
+    size_factor = int(sjob['box_size']/10000)
+    actinLen = sjob["actinLen"]*size_factor
+    n_actins = sjob["n_actins"]*size_factor**2
+    n_FAS = sjob["n_FAS"]*size_factor**3 
+    n_AAC = sjob["n_AAC"]*size_factor**3 
+    n_CAM = sjob["n_CAM"]*size_factor**3 
+
+
     # if sjob['abp'] in ['CAM','CAM2']:
     #     camkii_force='multigaussian'
     # else:
@@ -104,25 +115,25 @@ if __name__ == '__main__': # makes sure that the following code is executed only
 
     full_model = []
     #Add actins
-    for i in range(sjob["n_actins"]):
-        full_model += [coarseactin.create_actin(length=sjob["actinLen"],
+    for i in range(n_actins):
+        full_model += [coarseactin.create_actin(length=actinLen,
                        translation=np.random.random(3)*sjob["box_size"],
                        rotation=strans.Rotation.random().as_matrix(),
                        abp=None)]
     #Add FAS
-    for i in range(sjob["n_FAS"]):
+    for i in range(n_FAS):
         full_model += [coarseactin.create_abp(translation=np.random.random(3)*sjob["box_size"],
                        rotation=strans.Rotation.random().as_matrix(),
                        abp="FAS")]
         
     #Add AAC
-    for i in range(sjob["n_AAC"]):
+    for i in range(n_AAC):
         full_model += [coarseactin.create_abp(translation=np.random.random(3)*sjob["box_size"],
                        rotation=strans.Rotation.random().as_matrix(),
                        abp="AAC")]
 
     #Add CAM
-    for i in range(sjob["n_CAM"]):
+    for i in range(n_CAM):
         full_model += [coarseactin.create_abp(translation=np.random.random(3)*sjob["box_size"],
                        rotation=strans.Rotation.random().as_matrix(),
                        abp="CAM")]
@@ -184,6 +195,36 @@ if __name__ == '__main__': # makes sure that the following code is executed only
     else: 
         s.setForces(AlignmentConstraint=aligned, PlaneConstraint=system2D, forces=['abp'])
 
+    
+    # Add electrostatics
+    electrostatics = openmm.CustomNonbondedForce("epsilon_electrostatics*q1*q2/r*exp(-kappa_electrostatics*r)") # Debye-Huckel (kJ/mol)
+    if s.periodic_box is not None:
+        electrostatics.setNonbondedMethod(electrostatics.CutoffPeriodic)
+    else:
+        electrostatics.setNonbondedMethod(electrostatics.CutoffNonPeriodic)
+    
+    electrostatics.addPerParticleParameter("q")
+    electrostatics.addGlobalParameter("epsilon_electrostatics", 1.736385125*sjob["epsilon_electrostatics"])  #1.736385125 # Calculated by Nusayba and Carlos Find good values (# Look for other papers with a similar equation, Columb, Debye-Huckel, etc.)(nm/charge2)
+    electrostatics.addGlobalParameter("kappa_electrostatics",1) #  https://doi.org/10.3389/fcell.2023.1071977, Find good values (# Screening length of water (related to dielectrics)) (nm-1)
+    electrostatics.setCutoffDistance(40*openmm.unit.nanometers)
+    electrostatics.setUseLongRangeCorrection(True)
+    # Add charges to particles
+    for _, a in s.atom_list.iterrows():
+        if a.residue_name in ['ACT','ACD'] and a.name in ['A1','A2','A3','A4']:
+            q=-2.5 #Calculated by counting the charge of the sequence. Find good values (Charge or actin per subunit or per monomer) Charge units
+        elif a.residue_name in ['FAS']:
+            q=3.3/6 #Calculated by counting the charge of the sequence. Find good values (Charge or actin per subunit or per monomer) Charge units
+        elif a.residue_name in ['AAC']:
+            if sjob["actinin_electrostatics"]:
+                q=-31.0/3 #Calculated by counting the charge of the sequence. Find good values (Charge or actin per subunit or per monomer) Charge units
+            else:
+                q=0
+        else:
+            q=0
+        electrostatics.addParticle([q]) 
+    electrostatics.createExclusionsFromBonds(s.bonds[['i', 'j']].values.tolist(), 3)
+    s.system.addForce(electrostatics)
+    
     top = openmm.app.PDBxFile(f'{Sname}.cif')
     coord = openmm.app.PDBxFile(f'{Sname}.cif')
 
