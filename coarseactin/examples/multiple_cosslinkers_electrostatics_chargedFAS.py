@@ -10,7 +10,7 @@
 #SBATCH --export=ALL
 #SBATCH --mail-user=ne25@rice.edu
 #SBATCH --mail-type=ALL
-#SBATCH --array=0-11 
+#SBATCH --array=0-5 
 #SBATCH --mem=16G
 
 import sys # Import the sys module for interacting with the Python interpreter
@@ -34,7 +34,7 @@ if __name__ == '__main__': # makes sure that the following code is executed only
                 #the corresponding value so (100) refers to the possible list of values the parameter can take
                 # affinity of the crosslinkers to the binding site  
                   "epsilon_CAM": [100],
-                  "aligned": [True],
+                  "aligned": [False],
                   "actinLen": [100],
                   # "layers": [3],
                   "repetition":range(3),
@@ -49,7 +49,7 @@ if __name__ == '__main__': # makes sure that the following code is executed only
                   "frequency": [10000],
                   "run_time": [20],
                   "epsilon_electrostatics":[1],
-                  "actinin_electrostatics":[True,False], 
+                  "actinin_electrostatics":[True], 
                   # "run_steps":[10000000], # nusayba changed to run
                   # "abp": ['FAS', 'CAM', 'CBP', 'AAC', 'AAC2', 'CAM2'], #Nusayba changed to run
                   "simulation_platform": ["OpenCL"]}
@@ -77,7 +77,7 @@ if __name__ == '__main__': # makes sure that the following code is executed only
     #     except TypeError:
     #         pass
   
-    sjob = coarseactin.SlurmJobArray("Simulations_scratch/Box_chargedFAS/Run1", parameters, test_parameters) #This line creates an instance of the SlurmJobArray class from the coarseactin module. The constructor of the SlurmJobArray class takes four arguments: a file path "Simulations/Box/Boxv3", dictionaries parameters and test_parameters, and the job_id variable. This instance of sjob represents a job array for SLURM job submission.
+    sjob = coarseactin.SlurmJobArray("Simulations_scratch/Box_chargedFAS_noalignment/Run1", parameters, test_parameters) #This line creates an instance of the SlurmJobArray class from the coarseactin module. The constructor of the SlurmJobArray class takes four arguments: a file path "Simulations/Box/Boxv3", dictionaries parameters and test_parameters, and the job_id variable. This instance of sjob represents a job array for SLURM job submission.
     #sjob = coarseactin.SlurmJobArray("/Users/nusaybaelali/documents/fis/coarsegrainedactin/simulations/box/boxv6", parameters, test_parameters, job_id)
     sjob.print_parameters()
     sjob.print_slurm_variables()
