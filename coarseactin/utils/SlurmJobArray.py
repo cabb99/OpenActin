@@ -52,7 +52,7 @@ class SlurmJobArray:
                 test_parameters={"simulation_platform":"CPU"}
         job_id: int | str
         """
-        self.name = Path(name)
+        name = Path(name)
         self.all_parameters = parameters
         self.test_parameters = test_parameters
         if test_parameters is None:
