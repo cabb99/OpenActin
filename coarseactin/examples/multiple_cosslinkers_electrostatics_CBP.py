@@ -35,7 +35,7 @@ if __name__ == '__main__': # makes sure that the following code is executed only
                 # affinity of the crosslinkers to the binding site  
                   "epsilon_CAM": [100],
                   "aligned": [False],
-                  "actinLen": [200],
+                  "actinLen": [100],
                   # "layers": [3],
                   "repetition":range(3),
                   "disorder": [0],
