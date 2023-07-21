@@ -34,14 +34,14 @@ if __name__ == '__main__': # makes sure that the following code is executed only
                 #the corresponding value so (100) refers to the possible list of values the parameter can take
                 # affinity of the crosslinkers to the binding site  
                   "epsilon_CAM": [100],
-                  "aligned": [False],
+                  "aligned": [True],
                   "actinLen": [100],
                   # "layers": [3],
                   "repetition":range(3),
                   "disorder": [0],
                   "box_size": [10000],
                   "n_actins": [20],
-                  "n_FAS": [200],
+                  "n_FAS": [200], # TODO look for abp concentrations in brain
                   "n_AAC": [200],
                   "n_CBP":[200],
                   "temperature": [300],
@@ -50,6 +50,7 @@ if __name__ == '__main__': # makes sure that the following code is executed only
                   "run_time": [20],
                   "epsilon_electrostatics":[1],
                   "actinin_electrostatics":[True], 
+                  "camkii_electrostatics":[True,False],
                   # "run_steps":[10000000], # nusayba changed to run
                   # "abp": ['FAS', 'CAM', 'CBP', 'AAC', 'AAC2', 'CAM2'], #Nusayba changed to run
                   "simulation_platform": ["OpenCL"]}
@@ -77,7 +78,7 @@ if __name__ == '__main__': # makes sure that the following code is executed only
     #     except TypeError:
     #         pass
   
-    sjob = coarseactin.SlurmJobArray("Simulations_scratch/Box_chargedFAS_noalignment/Run1", parameters, test_parameters) #This line creates an instance of the SlurmJobArray class from the coarseactin module. The constructor of the SlurmJobArray class takes four arguments: a file path "Simulations/Box/Boxv3", dictionaries parameters and test_parameters, and the job_id variable. This instance of sjob represents a job array for SLURM job submission.
+    sjob = coarseactin.SlurmJobArray("Simulations_scratch/Box_electrostatics_CBP/Run1", parameters, test_parameters) #This line creates an instance of the SlurmJobArray class from the coarseactin module. The constructor of the SlurmJobArray class takes four arguments: a file path "Simulations/Box/Boxv3", dictionaries parameters and test_parameters, and the job_id variable. This instance of sjob represents a job array for SLURM job submission.
     #sjob = coarseactin.SlurmJobArray("/Users/nusaybaelali/documents/fis/coarsegrainedactin/simulations/box/boxv6", parameters, test_parameters, job_id)
     sjob.print_parameters()
     sjob.print_slurm_variables()
@@ -218,6 +219,16 @@ if __name__ == '__main__': # makes sure that the following code is executed only
         elif a.residue_name in ['AAC']:
             if sjob["actinin_electrostatics"]:
                 q=-31.0/3 #Calculated by counting the charge of the sequence. Find good values (Charge or actin per subunit or per monomer) Charge units
+            else:
+                q=0
+        elif a.residue_name in ['CBP'] and a.name in ['C01', 'C02', 'C03', 'C04', 'C05', 'C06', 'C07', 'C08', 'C09', 'C10', 'C11', 'C12']: 
+            if sjob["camkii_electrostatics"]: 
+                q=-3.5
+            else:
+                q=0
+        elif a.residue_name in ['CBP'] and a.name in ['Ca','Cb','Cd']: 
+            if sjob["camkii_electrostatics"]: 
+                q=8
             else:
                 q=0
         else:
