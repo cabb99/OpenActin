@@ -77,7 +77,7 @@ if __name__ == '__main__': # makes sure that the following code is executed only
     #     except TypeError:
     #         pass
   
-    sjob = coarseactin.SlurmJobArray("Simulations_scratch/Box_chargedFAS_twofilaments/Run1", parameters, test_parameters) #This line creates an instance of the SlurmJobArray class from the coarseactin module. The constructor of the SlurmJobArray class takes four arguments: a file path "Simulations/Box/Boxv3", dictionaries parameters and test_parameters, and the job_id variable. This instance of sjob represents a job array for SLURM job submission.
+    sjob = coarseactin.SlurmJobArray("Simulations_scratch/Box_chargedFAS_twofilaments_corrected/Run1", parameters, test_parameters) #This line creates an instance of the SlurmJobArray class from the coarseactin module. The constructor of the SlurmJobArray class takes four arguments: a file path "Simulations/Box/Boxv3", dictionaries parameters and test_parameters, and the job_id variable. This instance of sjob represents a job array for SLURM job submission.
     #sjob = coarseactin.SlurmJobArray("/Users/nusaybaelali/documents/fis/coarsegrainedactin/simulations/box/boxv6", parameters, test_parameters, job_id)
     sjob.print_parameters()
     sjob.print_slurm_variables()
@@ -94,13 +94,18 @@ if __name__ == '__main__': # makes sure that the following code is executed only
     Sname = sjob.name
     simulation_platform = sjob["simulation_platform"]
 
-    size_factor = int(sjob['box_size']/10000)
-    actinLen = sjob["actinLen"]*size_factor
-    n_actins = sjob["n_actins"]*size_factor**2
-    n_FAS = sjob["n_FAS"]*size_factor**3 
-    n_AAC = sjob["n_AAC"]*size_factor**3 
-    n_CAM = sjob["n_CAM"]*size_factor**3 
+    #size_factor = int(sjob['box_size']/10000)
+    # actinLen = sjob["actinLen"]*size_factor
+    # n_actins = sjob["n_actins"]*size_factor**2
+    # n_FAS = sjob["n_FAS"]*size_factor**3 
+    # n_AAC = sjob["n_AAC"]*size_factor**3 
+    # n_CAM = sjob["n_CAM"]*size_factor**3 
 
+    actinLen = sjob["actinLen"]
+    n_actins = sjob["n_actins"]
+    n_FAS = sjob["n_FAS"]
+    n_AAC = sjob["n_AAC"]
+    n_CAM = sjob["n_CAM"]
 
     # if sjob['abp'] in ['CAM','CAM2']:
     #     camkii_force='multigaussian'
