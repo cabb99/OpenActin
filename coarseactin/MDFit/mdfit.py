@@ -1,3 +1,4 @@
+import numpy as np
 from scipy.special import erf
 
 class MDFit:
@@ -8,42 +9,48 @@ class MDFit:
         self.padding=padding
         self.n_voxels=n_voxels
         self.voxel_size=voxel_size
-        
-        self.voxel_limits=np.meshgrid(np.arange(n_voxels[0]+1)*voxel_size[0],
-                                      np.arange(n_voxels[1]+1)*voxel_size[1],
-                                      np.arange(n_voxels[2]+1)*voxel_size[2],
-                                      sparse=True,
-                                      indexing='ij')
+        self.voxel_limits=[np.arange(-padding,n_voxels[0]+1+padding)*voxel_size[0],
+                           np.arange(-padding,n_voxels[1]+1+padding)*voxel_size[1],
+                           np.arange(-padding,n_voxels[2]+1+padding)*voxel_size[2]]
 
-        self.extended_voxel_limits=np.meshgrid(np.arange(-padding,n_voxels[0]+1+padding)*voxel_size[0],
-                                               np.arange(-padding,n_voxels[1]+1+padding)*voxel_size[1],
-                                               np.arange(-padding,n_voxels[2]+1+padding)*voxel_size[2],
-                                               sparse=True,
-                                               indexing='ij')
+    def fold_padding(self,volume_map):
+        p=self.padding
+        vp=volume_map.copy()
+        if p>0 and len(volume_map.shape)==3:
+            vp[-2*p:-p, :, :] += vp[:p, :, :]
+            vp[:, -2*p:-p, :] += vp[:, :p, :]
+            vp[:, :, -2*p:-p] += vp[:, :, :p]
+            vp[p:2*p, :, :]   += vp[-p:, :, :]
+            vp[:, p:2*p, :]   += vp[:, -p:, :]
+            vp[:, :, p:2*p]   += vp[:, :, -p:]
+            vp=vp[p:-p, p:-p, p:-p]
+        elif p>0 and len(volume_map.shape)==4:
+            vp[:, -2*p:-p, :, :] += vp[:, :p, :, :]
+            vp[:, :, -2*p:-p, :] += vp[:, :, :p, :]
+            vp[:, :, :, -2*p:-p] += vp[:, :, :, :p]
+            vp[:, p:2*p, :, :]   += vp[:, -p:, :, :]
+            vp[:, :, p:2*p, :]   += vp[:, :, -p:, :]
+            vp[:, :, :, p:2*p]   += vp[:, :, :, -p:]
+            vp=vp[:,p:-p, p:-p, p:-p]
+        return vp
 
     def sim_map(self):
         sigma=self.sigma*np.sqrt(2)
-        phix=(1+erf((self.extended_voxel_limits[0][None,:]-self.coordinates[:,0,None,None,None])/sigma[0]))/2
-        phiy=(1+erf((self.extended_voxel_limits[1][None,:]-self.coordinates[:,1,None,None,None])/sigma[1]))/2
-        phiz=(1+erf((self.extended_voxel_limits[2][None,:]-self.coordinates[:,2,None,None,None])/sigma[2]))/2
+        phix=(1+erf((self.voxel_limits[0]-self.coordinates[:,None,0])/sigma[0]))/2
+        phiy=(1+erf((self.voxel_limits[1]-self.coordinates[:,None,1])/sigma[1]))/2
+        phiz=(1+erf((self.voxel_limits[2]-self.coordinates[:,None,2])/sigma[2]))/2
 
-        sim_map=((phix[:,1:,:,:]-phix[:,:-1,:,:])*(phiy[:,:,1:,:]-phiy[:,:,:-1,:])*(phiz[:,:,:,1:]-phiz[:,:,:,:-1])).sum(axis=0)
-
-        if self.padding:
-            pad_width=self.padding
-            sim_map[-2*pad_width:-pad_width, :, :] += sim_map[:pad_width, :, :]
-            sim_map[pad_width:2*pad_width, :, :] += sim_map[-pad_width:, :, :]
-            sim_map[:, -2*pad_width:-pad_width, :] += sim_map[:, :pad_width, :]
-            sim_map[:, pad_width:2*pad_width, :] += sim_map[:, -pad_width:, :]
-            sim_map[:, :, -2*pad_width:-pad_width] += sim_map[:, :, :pad_width]
-            sim_map[:, :, pad_width:2*pad_width] += sim_map[:, :, -pad_width:]
-            sim_map=sim_map[pad_width:-pad_width, pad_width:-pad_width, pad_width:-pad_width]
-
-        return sim_map
+        dphix=(phix[:,1:]-phix[:,:-1])
+        dphiy=(phiy[:,1:]-phiy[:,:-1])
+        dphiz=(phiz[:,1:]-phiz[:,:-1])
+        
+        smap=(dphix[:,:,None,None]*dphiy[:,None,:,None]*dphiz[:,None,None,:]).sum(axis=0)
+        
+        return self.fold_padding(smap)
 
     def corr_coef(self):
-        sim_map=self.sim_map()
-        return (sim_map*self.experimental_map).sum()/np.sqrt((sim_map**2).sum()*(self.experimental_map**2).sum())
+        simulation_map=self.sim_map()
+        return (simulation_map*self.experimental_map).sum()/np.sqrt((simulation_map**2).sum()*(self.experimental_map**2).sum())
 
     def dcorr_coef_numerical(self, delta=1e-5):
         num_derivatives = np.zeros(self.coordinates.shape)
@@ -112,58 +119,53 @@ class MDFit:
                 self.coordinates[i, j] = original_coordinate
         
         return derivatives
+
+    @staticmethod
+    def outer_mult(x,y,z):
+        return x[:,:,None,None]*y[:,None,:,None]*z[:,None,None,:]
     
     def dsim_map(self):
-        sigma=self.sigma
-        x_mu_sigma=(self.extended_voxel_limits[0][None,:] - self.coordinates[:,0,None,None,None])/sigma[0]/np.sqrt(2)
-        y_mu_sigma=(self.extended_voxel_limits[1][None,:] - self.coordinates[:,1,None,None,None])/sigma[1]/np.sqrt(2)
-        z_mu_sigma=(self.extended_voxel_limits[2][None,:] - self.coordinates[:,2,None,None,None])/sigma[2]/np.sqrt(2)
+        sigma=self.sigma*np.sqrt(2)
 
+        x_mu_sigma=(self.voxel_limits[0]-self.coordinates[:,None,0])/sigma[0]
+        y_mu_sigma=(self.voxel_limits[1]-self.coordinates[:,None,1])/sigma[1]
+        z_mu_sigma=(self.voxel_limits[2]-self.coordinates[:,None,2])/sigma[2]
+        
         phix=(1+erf(x_mu_sigma))/2
         phiy=(1+erf(y_mu_sigma))/2
         phiz=(1+erf(z_mu_sigma))/2
         
-        dphix_dx= -np.exp(-x_mu_sigma**2) / np.sqrt(2 * np.pi) / sigma[0]
-        dphiy_dy= -np.exp(-y_mu_sigma**2) / np.sqrt(2 * np.pi) / sigma[1]
-        dphiz_dz= -np.exp(-z_mu_sigma**2) / np.sqrt(2 * np.pi) / sigma[2]
+        dphix_dx= -np.exp(-x_mu_sigma**2) / np.sqrt(np.pi) / sigma[0]
+        dphiy_dy= -np.exp(-y_mu_sigma**2) / np.sqrt(np.pi) / sigma[1]
+        dphiz_dz= -np.exp(-z_mu_sigma**2) / np.sqrt(np.pi) / sigma[2]
         
         dphix_ds= x_mu_sigma*dphix_dx*np.sqrt(2)
         dphiy_ds= y_mu_sigma*dphiy_dy*np.sqrt(2)
         dphiz_ds= z_mu_sigma*dphiz_dz*np.sqrt(2)
 
-        dphix=phix[:,1:,:,:]-phix[:,:-1,:,:]
-        dphiy=phiy[:,:,1:,:]-phiy[:,:,:-1,:]
-        dphiz=phiz[:,:,:,1:]-phiz[:,:,:,:-1]
-
-        ddphix_dx=dphix_dx[:,1:,:,:]-dphix_dx[:,:-1,:,:]
-        ddphiy_dy=dphiy_dy[:,:,1:,:]-dphiy_dy[:,:,:-1,:]
-        ddphiz_dz=dphiz_dz[:,:,:,1:]-dphiz_dz[:,:,:,:-1]
+        dphix=(phix[:,1:]-phix[:,:-1])
+        dphiy=(phiy[:,1:]-phiy[:,:-1])
+        dphiz=(phiz[:,1:]-phiz[:,:-1])
         
-        ddphix_ds=dphix_ds[:,1:,:,:]-dphix_ds[:,:-1,:,:]
-        ddphiy_ds=dphiy_ds[:,:,1:,:]-dphiy_ds[:,:,:-1,:]
-        ddphiz_ds=dphiz_ds[:,:,:,1:]-dphiz_ds[:,:,:,:-1]
+        ddphix_dx=dphix_dx[:,1:]-dphix_dx[:,:-1]
+        ddphiy_dy=dphiy_dy[:,1:]-dphiy_dy[:,:-1]
+        ddphiz_dz=dphiz_dz[:,1:]-dphiz_dz[:,:-1]
+        
+        ddphix_ds=dphix_ds[:,1:]-dphix_ds[:,:-1]
+        ddphiy_ds=dphiy_ds[:,1:]-dphiy_ds[:,:-1]
+        ddphiz_ds=dphiz_ds[:,1:]-dphiz_ds[:,:-1]
 
         dsim={}
-        dsim['dx']=ddphix_dx*dphiy*dphiz
-        dsim['dy']=dphix*ddphiy_dy*dphiz
-        dsim['dz']=dphix*dphiy*ddphiz_dz
-        dsim['dsx']=ddphix_ds*dphiy*dphiz
-        dsim['dsy']=dphix*ddphiy_ds*dphiz
-        dsim['dsz']=dphix*dphiy*ddphiz_ds
 
-        
-        if self.padding:
-            for key in dsim:
-                sim_map=dsim[key]
-                pad_width=self.padding
-                sim_map[:,-2*pad_width:-pad_width, :, :] += sim_map[:, :pad_width, :, :]
-                sim_map[:,pad_width:2*pad_width, :, :] += sim_map[:, -pad_width:, :, :]
-                sim_map[:,:, -2*pad_width:-pad_width, :] += sim_map[:, :, :pad_width, :]
-                sim_map[:,:, pad_width:2*pad_width, :] += sim_map[:, :, -pad_width:, :]
-                sim_map[:,:, :, -2*pad_width:-pad_width] += sim_map[:, :, :, :pad_width]
-                sim_map[:,:, :, pad_width:2*pad_width] += sim_map[:, :, :, -pad_width:]
-                dsim[key]=sim_map[:,pad_width:-pad_width, pad_width:-pad_width, pad_width:-pad_width]
-        
+        dsim['dx']=self.outer_mult(ddphix_dx,dphiy,dphiz)
+        dsim['dy']=self.outer_mult(dphix,ddphiy_dy,dphiz)
+        dsim['dz']=self.outer_mult(dphix,dphiy,ddphiz_dz)
+        dsim['dsx']=self.outer_mult(ddphix_ds,dphiy,dphiz)
+        dsim['dsy']=self.outer_mult(dphix,ddphiy_ds,dphiz)
+        dsim['dsz']=self.outer_mult(dphix,dphiy,ddphiz_ds)
+
+        for key in dsim:
+            dsim[key]=self.fold_padding(dsim[key])
         return dsim
 
     def dcorr_coef(self):
@@ -194,9 +196,5 @@ experimental_map=np.random.rand(10,20,5)
 
 self=MDFit(coordinates,experimental_map,n_voxels=[10,20,5],voxel_size=[1,1,1],padding=4)
 
-
-from matplotlib import pyplot as plt
-plt.imshow(self.sim_map().sum(axis=2).T)
-plt.scatter(self.coordinates[:,0]-0.5,self.coordinates[:,1]-0.5,color='k')
 
 
