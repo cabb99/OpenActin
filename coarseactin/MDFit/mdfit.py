@@ -220,65 +220,77 @@ def numba_erf(x):
         result[index] = math.erf(value)
     return result
     
+@jit(nopython=True)
+def substract_and_fold(arr,p):
+    darr=arr[:,1:]-arr[:,:-1]
+    darr[:, -2*p:-p] += darr[:, :p]
+    darr[:, p:2*p]   += darr[:, -p:]
+    return darr[:,p:-p]
 
 def dcorr(coordinates,voxel_limits,sigma, experimental_map,padding):
-    sigma=self.sigma*np.sqrt(2)
+    sigma=sigma*np.sqrt(2) #(3,)
+    
+    x_mu_sigma=(voxel_limits[0]-coordinates[:,None,0])/sigma[0] #(n,x+1+2*p)
+    y_mu_sigma=(voxel_limits[1]-coordinates[:,None,1])/sigma[1] #(n,y+1+2*p)
+    z_mu_sigma=(voxel_limits[2]-coordinates[:,None,2])/sigma[2] #(n,z+1+2*p)
+    
+    phix=(1+numba_erf(x_mu_sigma))/2 #(n,x+1+2*p)
+    phiy=(1+numba_erf(y_mu_sigma))/2 #(n,y+1+2*p)
+    phiz=(1+numba_erf(z_mu_sigma))/2 #(n,z+1+2*p)
+    
+    dphix_dx= -np.exp(-x_mu_sigma**2) / np.sqrt(np.pi) / sigma[0] #(n,x+1+2*p)
+    dphiy_dy= -np.exp(-y_mu_sigma**2) / np.sqrt(np.pi) / sigma[1] #(n,y+1+2*p)
+    dphiz_dz= -np.exp(-z_mu_sigma**2) / np.sqrt(np.pi) / sigma[2] #(n,z+1+2*p)
+    
+    dphix_ds= x_mu_sigma*dphix_dx*np.sqrt(2) #(n,x+1+2*p)
+    dphiy_ds= y_mu_sigma*dphiy_dy*np.sqrt(2) #(n,y+1+2*p)
+    dphiz_ds= z_mu_sigma*dphiz_dz*np.sqrt(2) #(n,z+1+2*p)
+    
+    dphix=substract_and_fold(phix, padding) #(n,x)
+    dphiy=substract_and_fold(phiy, padding) #(n,y)
+    dphiz=substract_and_fold(phiz, padding) #(n,z)
+    
+    ddphix_dx=substract_and_fold(dphix_dx, padding) #(n,x)
+    ddphiy_dy=substract_and_fold(dphiy_dy, padding) #(n,y)
+    ddphiz_dz=substract_and_fold(dphiz_dz, padding) #(n,z)
+    
+    ddphix_ds=substract_and_fold(dphix_ds, padding) #(n,x)
+    ddphiy_ds=substract_and_fold(dphiy_ds, padding) #(n,y)
+    ddphiz_ds=substract_and_fold(dphiz_ds, padding) #(n,z)
+    
+    #Calculate sim:
+    sim = np.einsum('ni,nj,nk->ijk', dphix, dphiy, dphiz) #(x,y,z)
+    exp=experimental_map #(x,y,z)
+    
+    num1=np.array([np.einsum('ni,nj,nk,ijk->n',ddphix_dx, dphiy, dphiz, exp),
+                   np.einsum('ni,nj,nk,ijk->n',dphix, ddphiy_dy, dphiz, exp),
+                   np.einsum('ni,nj,nk,ijk->n',dphix, dphiy, ddphiz_dz, exp),
+                   np.einsum('ni,nj,nk,ijk->n',ddphix_ds, dphiy, dphiz, exp),
+                   np.einsum('ni,nj,nk,ijk->n',dphix, ddphiy_ds, dphiz, exp),
+                   np.einsum('ni,nj,nk,ijk->n',dphix, dphiy, ddphiz_ds, exp)]) #(6,n)
+    
+    num2=np.array([np.einsum('ni,nj,nk,ijk->n',ddphix_dx, dphiy, dphiz, sim),
+                   np.einsum('ni,nj,nk,ijk->n',dphix, ddphiy_dy, dphiz, sim),
+                   np.einsum('ni,nj,nk,ijk->n',dphix, dphiy, ddphiz_dz, sim),
+                   np.einsum('ni,nj,nk,ijk->n',ddphix_ds, dphiy, dphiz, sim),
+                   np.einsum('ni,nj,nk,ijk->n',dphix, ddphiy_ds, dphiz, sim),
+                   np.einsum('ni,nj,nk,ijk->n',dphix, dphiy, ddphiz_ds, sim)]) #(6,n)
+    
+    num2*=np.sum(sim * exp) #(6,n)
+    den1=np.sqrt(np.sum(sim**2)) * np.sqrt(np.sum(exp**2)) #(,)
+    den2=np.sum(sim**2) * den1 #(,)
+    
+    result=((num1 / den1) - (num2 / den2)).T
+    return result
 
-    x_mu_sigma=(voxel_limits[0]-coordinates[:,None,0])/sigma[0]
-    y_mu_sigma=(voxel_limits[1]-coordinates[:,None,1])/sigma[1]
-    z_mu_sigma=(voxel_limits[2]-coordinates[:,None,2])/sigma[2]
-    
-    phix=(1+numba_erf(x_mu_sigma))/2
-    phiy=(1+numba_erf(y_mu_sigma))/2
-    phiz=(1+numba_erf(z_mu_sigma))/2
-    
-    dphix_dx= -np.exp(-x_mu_sigma**2) / np.sqrt(np.pi) / sigma[0]
-    dphiy_dy= -np.exp(-y_mu_sigma**2) / np.sqrt(np.pi) / sigma[1]
-    dphiz_dz= -np.exp(-z_mu_sigma**2) / np.sqrt(np.pi) / sigma[2]
-    
-    dphix_ds= x_mu_sigma*dphix_dx*np.sqrt(2)
-    dphiy_ds= y_mu_sigma*dphiy_dy*np.sqrt(2)
-    dphiz_ds= z_mu_sigma*dphiz_dz*np.sqrt(2)
 
-    dphix=(phix[:,1:]-phix[:,:-1])
-    dphiy=(phiy[:,1:]-phiy[:,:-1])
-    dphiz=(phiz[:,1:]-phiz[:,:-1])
-    
-    ddphix_dx=dphix_dx[:,1:]-dphix_dx[:,:-1]
-    ddphiy_dy=dphiy_dy[:,1:]-dphiy_dy[:,:-1]
-    ddphiz_dz=dphiz_dz[:,1:]-dphiz_dz[:,:-1]
-    
-    ddphix_ds=dphix_ds[:,1:]-dphix_ds[:,:-1]
-    ddphiy_ds=dphiy_ds[:,1:]-dphiy_ds[:,:-1]
-    ddphiz_ds=dphiz_ds[:,1:]-dphiz_ds[:,:-1]
-
-    smap     = fold_outer_mult4(dphix, dphiy, dphiz, padding)
-    smap_dx  = fold_outer_mult4(ddphix_dx, dphiy, dphiz, padding)
-    smap_dy  = fold_outer_mult4(dphix, ddphiy_dy, dphiz, padding)
-    smap_dz  = fold_outer_mult4(dphix, dphiy, ddphiz_dz, padding)
-    smap_dsx = fold_outer_mult4(ddphix_ds, dphiy, dphiz, padding)
-    smap_dsy = fold_outer_mult4(dphix, ddphiy_ds, dphiz, padding)
-    smap_dsz = fold_outer_mult4(dphix, dphiy, ddphiz_ds, padding)
-
-    
-    dsim=np.array([smap_dx,smap_dy,smap_dz,smap_dsx,smap_dsy,smap_dsz])
-    sim=smap.sum(axis=0)
-    exp=experimental_map
-    
-    num1=np.sum(dsim*exp[None,None,:,:,:],axis=(2,3,4))
-    den1=np.sqrt(np.sum(sim**2)) * np.sqrt(np.sum(exp**2))
-    
-    num2 = np.sum(dsim*sim[None,None,:,:,:],axis=(2,3,4))* np.sum(sim * exp)
-    den2 = np.sum(sim**2) * den1
-    
-    # Final equation
-    return ((num1 / den1) - (num2 / den2))[:,:3]
 
 coordinates=np.random.rand(100,3)*(10,20,5)
 experimental_map=np.random.rand(10,20,5)
 
 
 self=MDFit(coordinates,experimental_map,n_voxels=[10,20,5],voxel_size=[1,1,1],padding=4)
+np.allclose(dcorr_v2(self.coordinates,self.voxel_limits,self.sigma, self.experimental_map,self.padding)[:,:3],self.dcorr_coef())
 
 
 
