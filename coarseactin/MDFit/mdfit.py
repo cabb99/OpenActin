@@ -227,12 +227,13 @@ def substract_and_fold(arr,p):
     darr[:, p:2*p]   += darr[:, -p:]
     return darr[:,p:-p]
 
-def dcorr(coordinates,voxel_limits,sigma, experimental_map,padding):
+@jit(nopython=True)
+def dcorr_v2(coordinates,voxel_limits_x,voxel_limits_y,voxel_limits_z,sigma, experimental_map,padding):
     sigma=sigma*np.sqrt(2) #(3,)
     
-    x_mu_sigma=(voxel_limits[0]-coordinates[:,None,0])/sigma[0] #(n,x+1+2*p)
-    y_mu_sigma=(voxel_limits[1]-coordinates[:,None,1])/sigma[1] #(n,y+1+2*p)
-    z_mu_sigma=(voxel_limits[2]-coordinates[:,None,2])/sigma[2] #(n,z+1+2*p)
+    x_mu_sigma=(voxel_limits_x-coordinates[:,0:1])/sigma[0] #(n,x+1+2*p)
+    y_mu_sigma=(voxel_limits_y-coordinates[:,1:2])/sigma[1] #(n,y+1+2*p)
+    z_mu_sigma=(voxel_limits_z-coordinates[:,2:3])/sigma[2] #(n,z+1+2*p)
     
     phix=(1+numba_erf(x_mu_sigma))/2 #(n,x+1+2*p)
     phiy=(1+numba_erf(y_mu_sigma))/2 #(n,y+1+2*p)
@@ -257,30 +258,49 @@ def dcorr(coordinates,voxel_limits,sigma, experimental_map,padding):
     ddphix_ds=substract_and_fold(dphix_ds, padding) #(n,x)
     ddphiy_ds=substract_and_fold(dphiy_ds, padding) #(n,y)
     ddphiz_ds=substract_and_fold(dphiz_ds, padding) #(n,z)
+
+    exp=experimental_map
+    
+    n_dim = dphix.shape[0]
+    i_dim = dphix.shape[1]
+    j_dim = dphiy.shape[1]
+    k_dim = dphiz.shape[1]
     
     #Calculate sim:
-    sim = np.einsum('ni,nj,nk->ijk', dphix, dphiy, dphiz) #(x,y,z)
-    exp=experimental_map #(x,y,z)
+    sim=np.zeros((i_dim,j_dim,k_dim), dtype=np.float64)
+    for n in range(n_dim):
+        for i in range(i_dim):
+            for j in range(j_dim):
+                for k in range(k_dim):
+                    sim[i,j,k]+=dphix[n,i]*dphiy[n,j]*dphiz[n,k]
     
-    num1=np.array([np.einsum('ni,nj,nk,ijk->n',ddphix_dx, dphiy, dphiz, exp),
-                   np.einsum('ni,nj,nk,ijk->n',dphix, ddphiy_dy, dphiz, exp),
-                   np.einsum('ni,nj,nk,ijk->n',dphix, dphiy, ddphiz_dz, exp),
-                   np.einsum('ni,nj,nk,ijk->n',ddphix_ds, dphiy, dphiz, exp),
-                   np.einsum('ni,nj,nk,ijk->n',dphix, ddphiy_ds, dphiz, exp),
-                   np.einsum('ni,nj,nk,ijk->n',dphix, dphiy, ddphiz_ds, exp)]) #(6,n)
+    num1 = np.zeros((n_dim,6), dtype=np.float64)
+    num2 = np.zeros((n_dim,6), dtype=np.float64)
     
-    num2=np.array([np.einsum('ni,nj,nk,ijk->n',ddphix_dx, dphiy, dphiz, sim),
-                   np.einsum('ni,nj,nk,ijk->n',dphix, ddphiy_dy, dphiz, sim),
-                   np.einsum('ni,nj,nk,ijk->n',dphix, dphiy, ddphiz_dz, sim),
-                   np.einsum('ni,nj,nk,ijk->n',ddphix_ds, dphiy, dphiz, sim),
-                   np.einsum('ni,nj,nk,ijk->n',dphix, ddphiy_ds, dphiz, sim),
-                   np.einsum('ni,nj,nk,ijk->n',dphix, dphiy, ddphiz_ds, sim)]) #(6,n)
+    for n in range(n_dim):
+        for i in range(i_dim):
+            for j in range(j_dim):
+                for k in range(k_dim):
+                    num1[n,0]+=ddphix_dx[n,i]*dphiy[n,j]*dphiz[n,k]*exp[i,j,k]
+                    num1[n,1]+=dphix[n,i]*ddphiy_dy[n,j]*dphiz[n,k]*exp[i,j,k]
+                    num1[n,2]+=dphix[n,i]*dphiy[n,j]*ddphiz_dz[n,k]*exp[i,j,k]
+                    num1[n,3]+=ddphix_ds[n,i]*dphiy[n,j]*dphiz[n,k]*exp[i,j,k]
+                    num1[n,4]+=dphix[n,i]*ddphiy_ds[n,j]*dphiz[n,k]*exp[i,j,k]
+                    num1[n,5]+=dphix[n,i]*dphiy[n,j]*ddphiz_ds[n,k]*exp[i,j,k]
+                    num2[n,0]+=ddphix_dx[n,i]*dphiy[n,j]*dphiz[n,k]*sim[i,j,k]
+                    num2[n,1]+=dphix[n,i]*ddphiy_dy[n,j]*dphiz[n,k]*sim[i,j,k]
+                    num2[n,2]+=dphix[n,i]*dphiy[n,j]*ddphiz_dz[n,k]*sim[i,j,k]
+                    num2[n,3]+=ddphix_ds[n,i]*dphiy[n,j]*dphiz[n,k]*sim[i,j,k]
+                    num2[n,4]+=dphix[n,i]*ddphiy_ds[n,j]*dphiz[n,k]*sim[i,j,k]
+                    num2[n,5]+=dphix[n,i]*dphiy[n,j]*ddphiz_ds[n,k]*sim[i,j,k]
+
     
-    num2*=np.sum(sim * exp) #(6,n)
+    
+    num2*=np.sum(sim * exp) #(n,6)
     den1=np.sqrt(np.sum(sim**2)) * np.sqrt(np.sum(exp**2)) #(,)
     den2=np.sum(sim**2) * den1 #(,)
     
-    result=((num1 / den1) - (num2 / den2)).T
+    result=((num1 / den1) - (num2 / den2))
     return result
 
 
