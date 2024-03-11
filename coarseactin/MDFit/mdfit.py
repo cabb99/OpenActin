@@ -1,14 +1,16 @@
 import numpy as np
+from numba import jit, prange, vectorize, float64
+import math
 from scipy.special import erf
 
 class MDFit:
-    def __init__(self, coordinates, experimental_map,n_voxels,voxel_size,padding=3):
+    def __init__(self, coordinates, sigma, experimental_map,voxel_size,padding=3):
         self.coordinates=coordinates
         self.experimental_map=experimental_map
         self.sigma=np.array([1,1,1])
         self.padding=padding
-        self.n_voxels=n_voxels
-        self.voxel_size=voxel_size
+        self.n_voxels=np.array(experimental_map.shape)
+        self.voxel_size=np.array(voxel_size)
         self.voxel_limits=[np.arange(-padding,n_voxels[0]+1+padding)*voxel_size[0],
                            np.arange(-padding,n_voxels[1]+1+padding)*voxel_size[1],
                            np.arange(-padding,n_voxels[2]+1+padding)*voxel_size[2]]
@@ -168,7 +170,7 @@ class MDFit:
             dsim[key]=self.fold_padding(dsim[key])
         return dsim
 
-    def dcorr_coef(self):
+    def dcorr_coef_numpy(self):
         dsim=self.dsim_map()
         dsim=np.array([dsim['dx'],dsim['dy'],dsim['dz'],dsim['dsx'],dsim['dsy'],dsim['dsz']]).transpose(1,0,2,3,4)
         sim=self.sim_map()
@@ -183,15 +185,14 @@ class MDFit:
         
         # Final equation
         return ((num1 / den1) - (num2 / den2))[:,:3]
-
+    
+    def dcorr_coef(self):
+        return dcorr_v3(self.coordinates,self.n_voxels,self.voxel_size,self.sigma, self.experimental_map,self.padding,5)
     def test(self):
         assert np.allclose(self.dsim_map()['dx'],self.dsim_map_numerical()['dx'])
         assert np.allclose(self.dsim_map()['dy'],self.dsim_map_numerical()['dy'])
         assert np.allclose(self.dsim_map()['dz'],self.dsim_map_numerical()['dz'])
         assert np.allclose(self.dcorr_coef(),self.dcorr_coef_numerical())
-
-from numba import jit, prange, vectorize, float64
-import math
 
 @vectorize([float64(float64)], nopython=True)
 def numba_erf(x):
@@ -205,7 +206,7 @@ def substract_and_fold(arr,p):
     return darr[:,p:-p]
 
 @jit(nopython=True, parallel=True)
-def dcorr_v3(coordinates,n_voxels,voxel_size,sigma, experimental_map,padding,multiplier):
+def dcorr_v3(coordinates, n_voxels ,voxel_size ,sigma, experimental_map, padding, multiplier):
     n_dim = coordinates.shape[0]
     i_dim = n_voxels[0]
     j_dim = n_voxels[1]
@@ -260,10 +261,10 @@ def dcorr_v3(coordinates,n_voxels,voxel_size,sigma, experimental_map,padding,mul
     ddphiy_ds=substract_and_fold(dphiy_ds, padding) #(n,y)
     ddphiz_ds=substract_and_fold(dphiz_ds, padding) #(n,z)
     
-    exp=experimental_map
+    exp=experimental_map #(x,y,z)
     
     #Calculate sim
-    sim=np.zeros((i_dim,j_dim,k_dim), dtype=np.float64)
+    sim=np.zeros((i_dim,j_dim,k_dim), dtype=np.float64) #(x,y,z)
     for n in prange(n_dim):
         i_min,i_max,j_min,j_max,k_min,k_max=limits[n]
         for i in range(i_min,i_max+1):
@@ -273,12 +274,10 @@ def dcorr_v3(coordinates,n_voxels,voxel_size,sigma, experimental_map,padding,mul
                 for k in range(k_min,k_max+1):
                     k=(k-padding)%k_dim
                     sim[i,j,k]+=dphix[n,i]*dphiy[n,j]*dphiz[n,k]
-    # sim=calculate_sim(n_dim,i_dim,j_dim,k_dim,limits,padding,dphix,dphiy,dphiz)
     
-    # return calculate_dcorr(n_dim,i_dim,j_dim,k_dim,limits,padding,dphix,dphiy,dphiz,ddphix_dx,ddphiy_dy,ddphiz_dz,ddphix_ds,ddphiy_ds,ddphiz_ds,exp,sim)
+    #Calculate derivatives
     num1 = np.zeros((n_dim,6), dtype=np.float64)
     num2 = np.zeros((n_dim,6), dtype=np.float64)
-    
     for n in prange(n_dim):
         i_min,i_max,j_min,j_max,k_min,k_max=limits[n]
         for i in range(i_min,i_max+1):
@@ -306,15 +305,16 @@ def dcorr_v3(coordinates,n_voxels,voxel_size,sigma, experimental_map,padding,mul
     den1=np.sqrt(np.sum(sim**2)) * np.sqrt(np.sum(exp**2)) #(,)
     den2=np.sum(sim**2) * den1 #(,)
     
-    result=((num1 / den1) - (num2 / den2))
+    result=((num1 / den1) - (num2 / den2)) #(n,6)
     return result
 
-coordinates=np.random.rand(100,3)*(10,20,5)
-experimental_map=np.random.rand(10,20,5)
-
-
-self=MDFit(coordinates,experimental_map,n_voxels=[10,20,5],voxel_size=[1,1,1],padding=4)
-np.allclose(dcorr_v3(self.coordinates,self.voxel_limits,self.sigma, self.experimental_map,self.padding,5)[:,:3],self.dcorr_coef())
+nx,ny,nz=70,60,50
+coordinates=np.random.rand(10,3)*(nx,ny,nz)
+experimental_map=np.random.rand(nx,ny,nz)
+self=MDFit(coordinates,experimental_map,n_voxels=[nx,ny,nz],voxel_size=[1,1,1],padding=4)
+assert np.allclose(self.dcorr_coef_numpy(),self.dcorr_coef_numerical())
+assert np.allclose(self.dcorr_coef()[:,:3],self.dcorr_coef_numpy())
+assert np.allclose(dcorr_v3(self.coordinates,self.n_voxels,self.voxel_size,self.sigma, self.experimental_map,self.padding,5)[:,:3],self.dcorr_coef_numpy())
 
 
 
