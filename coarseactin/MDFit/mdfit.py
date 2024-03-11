@@ -227,6 +227,56 @@ def substract_and_fold(arr,p):
     darr[:, p:2*p]   += darr[:, -p:]
     return darr[:,p:-p]
 
+@jit(nopython=True,parallel=True)
+def calculate_sim(n_dim,i_dim,j_dim,k_dim,limits,padding,dphix,dphiy,dphiz):
+    sim=np.zeros((i_dim,j_dim,k_dim), dtype=np.float64)
+    for n in prange(n_dim):
+        i_min,i_max,j_min,j_max,k_min,k_max=limits[n]
+        for i in range(i_min,i_max+1):
+            i=(i-padding)%i_dim
+            for j in range(j_min,j_max+1):
+                j=(j-padding)%j_dim
+                for k in range(k_min,k_max+1):
+                    k=(k-padding)%k_dim
+                    sim[i,j,k]+=dphix[n,i]*dphiy[n,j]*dphiz[n,k]
+    return sim
+
+@jit(nopython=True,parallel=True)
+def calculate_dcorr(n_dim,i_dim,j_dim,k_dim,limits,padding,dphix,dphiy,dphiz,ddphix_dx,ddphiy_dy,ddphiz_dz,ddphix_ds,ddphiy_ds,ddphiz_ds,exp,sim):
+    num1 = np.zeros((n_dim,6), dtype=np.float64)
+    num2 = np.zeros((n_dim,6), dtype=np.float64)
+    
+    for n in prange(n_dim):
+        i_min,i_max,j_min,j_max,k_min,k_max=limits[n]
+        for i in range(i_min,i_max+1):
+            i=(i-padding)%i_dim
+            for j in range(j_min,j_max+1):
+                j=(j-padding)%j_dim
+                for k in range(k_min,k_max+1):
+                    k=(k-padding)%k_dim
+                    exp_val=exp[i,j,k]
+                    sim_val=sim[i,j,k]
+                    num1[n,0]+=ddphix_dx[n,i]*dphiy[n,j]*dphiz[n,k]*exp_val
+                    num1[n,1]+=dphix[n,i]*ddphiy_dy[n,j]*dphiz[n,k]*exp_val
+                    num1[n,2]+=dphix[n,i]*dphiy[n,j]*ddphiz_dz[n,k]*exp_val
+                    num1[n,3]+=ddphix_ds[n,i]*dphiy[n,j]*dphiz[n,k]*exp_val
+                    num1[n,4]+=dphix[n,i]*ddphiy_ds[n,j]*dphiz[n,k]*exp_val
+                    num1[n,5]+=dphix[n,i]*dphiy[n,j]*ddphiz_ds[n,k]*exp_val
+                    num2[n,0]+=ddphix_dx[n,i]*dphiy[n,j]*dphiz[n,k]*sim_val
+                    num2[n,1]+=dphix[n,i]*ddphiy_dy[n,j]*dphiz[n,k]*sim_val
+                    num2[n,2]+=dphix[n,i]*dphiy[n,j]*ddphiz_dz[n,k]*sim_val
+                    num2[n,3]+=ddphix_ds[n,i]*dphiy[n,j]*dphiz[n,k]*sim_val
+                    num2[n,4]+=dphix[n,i]*ddphiy_ds[n,j]*dphiz[n,k]*sim_val
+                    num2[n,5]+=dphix[n,i]*dphiy[n,j]*ddphiz_ds[n,k]*sim_val
+    
+    num2*=np.sum(sim * exp) #(n,6)
+    den1=np.sqrt(np.sum(sim**2)) * np.sqrt(np.sum(exp**2)) #(,)
+    den2=np.sum(sim**2) * den1 #(,)
+    
+    result=((num1 / den1) - (num2 / den2))
+    return result
+
+
 @jit(nopython=True)
 def dcorr_v3(coordinates,voxel_limits_x,voxel_limits_y,voxel_limits_z,sigma, experimental_map,padding,multiplier):
     min_coords = (coordinates - multiplier * sigma)
@@ -278,50 +328,9 @@ def dcorr_v3(coordinates,voxel_limits_x,voxel_limits_y,voxel_limits_z,sigma, exp
     j_dim = dphiy.shape[1]
     k_dim = dphiz.shape[1]
     
-    #Calculate sim:
-    sim=np.zeros((i_dim,j_dim,k_dim), dtype=np.float64)
-    for n in range(n_dim):
-        i_min,i_max,j_min,j_max,k_min,k_max=limits[n]
-        for i in range(i_min,i_max+1):
-            i=(i-padding)%i_dim
-            for j in range(j_min,j_max+1):
-                j=(j-padding)%j_dim
-                for k in range(k_min,k_max+1):
-                    k=(k-padding)%k_dim
-                    sim[i,j,k]+=dphix[n,i]*dphiy[n,j]*dphiz[n,k]
+    sim=calculate_sim(n_dim,i_dim,j_dim,k_dim,limits,padding,dphix,dphiy,dphiz)
     
-    num1 = np.zeros((n_dim,6), dtype=np.float64)
-    num2 = np.zeros((n_dim,6), dtype=np.float64)
-    
-    for n in range(n_dim):
-        i_min,i_max,j_min,j_max,k_min,k_max=limits[n]
-        for i in range(i_min,i_max+1):
-            i=(i-padding)%i_dim
-            for j in range(j_min,j_max+1):
-                j=(j-padding)%j_dim
-                for k in range(k_min,k_max+1):
-                    k=(k-padding)%k_dim
-                    exp_val=exp[i,j,k]
-                    sim_val=sim[i,j,k]
-                    num1[n,0]+=ddphix_dx[n,i]*dphiy[n,j]*dphiz[n,k]*exp_val
-                    num1[n,1]+=dphix[n,i]*ddphiy_dy[n,j]*dphiz[n,k]*exp_val
-                    num1[n,2]+=dphix[n,i]*dphiy[n,j]*ddphiz_dz[n,k]*exp_val
-                    num1[n,3]+=ddphix_ds[n,i]*dphiy[n,j]*dphiz[n,k]*exp_val
-                    num1[n,4]+=dphix[n,i]*ddphiy_ds[n,j]*dphiz[n,k]*exp_val
-                    num1[n,5]+=dphix[n,i]*dphiy[n,j]*ddphiz_ds[n,k]*exp_val
-                    num2[n,0]+=ddphix_dx[n,i]*dphiy[n,j]*dphiz[n,k]*sim_val
-                    num2[n,1]+=dphix[n,i]*ddphiy_dy[n,j]*dphiz[n,k]*sim_val
-                    num2[n,2]+=dphix[n,i]*dphiy[n,j]*ddphiz_dz[n,k]*sim_val
-                    num2[n,3]+=ddphix_ds[n,i]*dphiy[n,j]*dphiz[n,k]*sim_val
-                    num2[n,4]+=dphix[n,i]*ddphiy_ds[n,j]*dphiz[n,k]*sim_val
-                    num2[n,5]+=dphix[n,i]*dphiy[n,j]*ddphiz_ds[n,k]*sim_val
-    
-    num2*=np.sum(sim * exp) #(n,6)
-    den1=np.sqrt(np.sum(sim**2)) * np.sqrt(np.sum(exp**2)) #(,)
-    den2=np.sum(sim**2) * den1 #(,)
-    
-    result=((num1 / den1) - (num2 / den2))
-    return result
+    return calculate_dcorr(n_dim,i_dim,j_dim,k_dim,limits,padding,dphix,dphiy,dphiz,ddphix_dx,ddphiy_dy,ddphiz_dz,ddphix_ds,ddphiy_ds,ddphiz_ds,exp,sim)
 
 
 coordinates=np.random.rand(100,3)*(10,20,5)
