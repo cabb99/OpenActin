@@ -228,7 +228,19 @@ def substract_and_fold(arr,p):
     return darr[:,p:-p]
 
 @jit(nopython=True)
-def dcorr_v2(coordinates,voxel_limits_x,voxel_limits_y,voxel_limits_z,sigma, experimental_map,padding):
+def dcorr_v3(coordinates,voxel_limits_x,voxel_limits_y,voxel_limits_z,sigma, experimental_map,padding,multiplier):
+    min_coords = (coordinates - multiplier * sigma)
+    max_coords = (coordinates + multiplier * sigma)
+    
+    limits=np.zeros((coordinates.shape[0],6),dtype=np.int64)
+    
+    limits[:,0]=np.searchsorted(voxel_limits_x,min_coords[:,0])-1
+    limits[:,1]=np.searchsorted(voxel_limits_x,max_coords[:,0])+1
+    limits[:,2]=np.searchsorted(voxel_limits_y,min_coords[:,1])-1
+    limits[:,3]=np.searchsorted(voxel_limits_y,max_coords[:,1])+1
+    limits[:,4]=np.searchsorted(voxel_limits_z,min_coords[:,2])-1
+    limits[:,5]=np.searchsorted(voxel_limits_z,max_coords[:,2])+1
+    
     sigma=sigma*np.sqrt(2) #(3,)
     
     x_mu_sigma=(voxel_limits_x-coordinates[:,0:1])/sigma[0] #(n,x+1+2*p)
@@ -258,7 +270,7 @@ def dcorr_v2(coordinates,voxel_limits_x,voxel_limits_y,voxel_limits_z,sigma, exp
     ddphix_ds=substract_and_fold(dphix_ds, padding) #(n,x)
     ddphiy_ds=substract_and_fold(dphiy_ds, padding) #(n,y)
     ddphiz_ds=substract_and_fold(dphiz_ds, padding) #(n,z)
-
+    
     exp=experimental_map
     
     n_dim = dphix.shape[0]
@@ -269,32 +281,40 @@ def dcorr_v2(coordinates,voxel_limits_x,voxel_limits_y,voxel_limits_z,sigma, exp
     #Calculate sim:
     sim=np.zeros((i_dim,j_dim,k_dim), dtype=np.float64)
     for n in range(n_dim):
-        for i in range(i_dim):
-            for j in range(j_dim):
-                for k in range(k_dim):
+        i_min,i_max,j_min,j_max,k_min,k_max=limits[n]
+        for i in range(i_min,i_max+1):
+            i=(i-padding)%i_dim
+            for j in range(j_min,j_max+1):
+                j=(j-padding)%j_dim
+                for k in range(k_min,k_max+1):
+                    k=(k-padding)%k_dim
                     sim[i,j,k]+=dphix[n,i]*dphiy[n,j]*dphiz[n,k]
     
     num1 = np.zeros((n_dim,6), dtype=np.float64)
     num2 = np.zeros((n_dim,6), dtype=np.float64)
     
     for n in range(n_dim):
-        for i in range(i_dim):
-            for j in range(j_dim):
-                for k in range(k_dim):
-                    num1[n,0]+=ddphix_dx[n,i]*dphiy[n,j]*dphiz[n,k]*exp[i,j,k]
-                    num1[n,1]+=dphix[n,i]*ddphiy_dy[n,j]*dphiz[n,k]*exp[i,j,k]
-                    num1[n,2]+=dphix[n,i]*dphiy[n,j]*ddphiz_dz[n,k]*exp[i,j,k]
-                    num1[n,3]+=ddphix_ds[n,i]*dphiy[n,j]*dphiz[n,k]*exp[i,j,k]
-                    num1[n,4]+=dphix[n,i]*ddphiy_ds[n,j]*dphiz[n,k]*exp[i,j,k]
-                    num1[n,5]+=dphix[n,i]*dphiy[n,j]*ddphiz_ds[n,k]*exp[i,j,k]
-                    num2[n,0]+=ddphix_dx[n,i]*dphiy[n,j]*dphiz[n,k]*sim[i,j,k]
-                    num2[n,1]+=dphix[n,i]*ddphiy_dy[n,j]*dphiz[n,k]*sim[i,j,k]
-                    num2[n,2]+=dphix[n,i]*dphiy[n,j]*ddphiz_dz[n,k]*sim[i,j,k]
-                    num2[n,3]+=ddphix_ds[n,i]*dphiy[n,j]*dphiz[n,k]*sim[i,j,k]
-                    num2[n,4]+=dphix[n,i]*ddphiy_ds[n,j]*dphiz[n,k]*sim[i,j,k]
-                    num2[n,5]+=dphix[n,i]*dphiy[n,j]*ddphiz_ds[n,k]*sim[i,j,k]
-
-    
+        i_min,i_max,j_min,j_max,k_min,k_max=limits[n]
+        for i in range(i_min,i_max+1):
+            i=(i-padding)%i_dim
+            for j in range(j_min,j_max+1):
+                j=(j-padding)%j_dim
+                for k in range(k_min,k_max+1):
+                    k=(k-padding)%k_dim
+                    exp_val=exp[i,j,k]
+                    sim_val=sim[i,j,k]
+                    num1[n,0]+=ddphix_dx[n,i]*dphiy[n,j]*dphiz[n,k]*exp_val
+                    num1[n,1]+=dphix[n,i]*ddphiy_dy[n,j]*dphiz[n,k]*exp_val
+                    num1[n,2]+=dphix[n,i]*dphiy[n,j]*ddphiz_dz[n,k]*exp_val
+                    num1[n,3]+=ddphix_ds[n,i]*dphiy[n,j]*dphiz[n,k]*exp_val
+                    num1[n,4]+=dphix[n,i]*ddphiy_ds[n,j]*dphiz[n,k]*exp_val
+                    num1[n,5]+=dphix[n,i]*dphiy[n,j]*ddphiz_ds[n,k]*exp_val
+                    num2[n,0]+=ddphix_dx[n,i]*dphiy[n,j]*dphiz[n,k]*sim_val
+                    num2[n,1]+=dphix[n,i]*ddphiy_dy[n,j]*dphiz[n,k]*sim_val
+                    num2[n,2]+=dphix[n,i]*dphiy[n,j]*ddphiz_dz[n,k]*sim_val
+                    num2[n,3]+=ddphix_ds[n,i]*dphiy[n,j]*dphiz[n,k]*sim_val
+                    num2[n,4]+=dphix[n,i]*ddphiy_ds[n,j]*dphiz[n,k]*sim_val
+                    num2[n,5]+=dphix[n,i]*dphiy[n,j]*ddphiz_ds[n,k]*sim_val
     
     num2*=np.sum(sim * exp) #(n,6)
     den1=np.sqrt(np.sum(sim**2)) * np.sqrt(np.sum(exp**2)) #(,)
@@ -304,13 +324,12 @@ def dcorr_v2(coordinates,voxel_limits_x,voxel_limits_y,voxel_limits_z,sigma, exp
     return result
 
 
-
 coordinates=np.random.rand(100,3)*(10,20,5)
 experimental_map=np.random.rand(10,20,5)
 
 
 self=MDFit(coordinates,experimental_map,n_voxels=[10,20,5],voxel_size=[1,1,1],padding=4)
-np.allclose(dcorr_v2(self.coordinates,self.voxel_limits,self.sigma, self.experimental_map,self.padding)[:,:3],self.dcorr_coef())
+np.allclose(dcorr_v3(self.coordinates,self.voxel_limits,self.sigma, self.experimental_map,self.padding,5)[:,:3],self.dcorr_coef())
 
 
 
