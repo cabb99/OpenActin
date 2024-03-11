@@ -190,36 +190,13 @@ class MDFit:
         assert np.allclose(self.dsim_map()['dz'],self.dsim_map_numerical()['dz'])
         assert np.allclose(self.dcorr_coef(),self.dcorr_coef_numerical())
 
-from numba import jit
-@jit(nopython=True)
-def fold_outer_mult4(x,y,z,padding):
-    x_reshaped = x.reshape(x.shape[0], x.shape[1], 1, 1)
-    y_reshaped = y.reshape(y.shape[0], 1, y.shape[1], 1)
-    z_reshaped = z.reshape(z.shape[0], 1, 1, z.shape[1])
-    
-    # Perform element-wise multiplication with broadcasting
-    vp = x_reshaped * y_reshaped * z_reshaped
-    p = padding
+from numba import jit, prange, vectorize, float64
+import math
 
-    vp[:, -2*p:-p, :, :] += vp[:, :p, :, :]
-    vp[:, :, -2*p:-p, :] += vp[:, :, :p, :]
-    vp[:, :, :, -2*p:-p] += vp[:, :, :, :p]
-    vp[:, p:2*p, :, :]   += vp[:, -p:, :, :]
-    vp[:, :, p:2*p, :]   += vp[:, :, -p:, :]
-    vp[:, :, :, p:2*p]   += vp[:, :, :, -p:]
-    vp = vp[:, p:-p, p:-p, p:-p]
-    return vp
-
-@jit(nopython=True)
+@vectorize([float64(float64)], nopython=True)
 def numba_erf(x):
-    # Preallocate the result array with the same shape as x
-    result = np.empty(x.shape, dtype=np.float64)
-    # Iterate over all elements in x by their indices
-    for index, value in np.ndenumerate(x):
-        # Apply math.erf element-wise
-        result[index] = math.erf(value)
-    return result
-    
+    return math.erf(x)
+
 @jit(nopython=True)
 def substract_and_fold(arr,p):
     darr=arr[:,1:]-arr[:,:-1]
@@ -227,8 +204,65 @@ def substract_and_fold(arr,p):
     darr[:, p:2*p]   += darr[:, -p:]
     return darr[:,p:-p]
 
-@jit(nopython=True,parallel=True)
-def calculate_sim(n_dim,i_dim,j_dim,k_dim,limits,padding,dphix,dphiy,dphiz):
+@jit(nopython=True, parallel=True)
+def dcorr_v3(coordinates,n_voxels,voxel_size,sigma, experimental_map,padding,multiplier):
+    n_dim = coordinates.shape[0]
+    i_dim = n_voxels[0]
+    j_dim = n_voxels[1]
+    k_dim = n_voxels[2]
+
+    voxel_limits_x=np.arange(-padding,n_voxels[0]+1+padding)*voxel_size[0]
+    voxel_limits_y=np.arange(-padding,n_voxels[1]+1+padding)*voxel_size[1]
+    voxel_limits_z=np.arange(-padding,n_voxels[2]+1+padding)*voxel_size[2]
+    
+    min_coords = (coordinates - multiplier * sigma)
+    max_coords = (coordinates + multiplier * sigma)
+    
+    limits=np.zeros((coordinates.shape[0],6),dtype=np.int64)
+    
+    limits[:,0]=np.searchsorted(voxel_limits_x,min_coords[:,0])-1
+    limits[:,1]=np.searchsorted(voxel_limits_x,max_coords[:,0])+1
+    limits[:,2]=np.searchsorted(voxel_limits_y,min_coords[:,1])-1
+    limits[:,3]=np.searchsorted(voxel_limits_y,max_coords[:,1])+1
+    limits[:,4]=np.searchsorted(voxel_limits_z,min_coords[:,2])-1
+    limits[:,5]=np.searchsorted(voxel_limits_z,max_coords[:,2])+1
+    
+    sigma=sigma*np.sqrt(2) #(3,)
+    x_mu_sigma=np.zeros((n_dim,voxel_limits_x.shape[0]))
+    y_mu_sigma=np.zeros((n_dim,voxel_limits_y.shape[0]))
+    z_mu_sigma=np.zeros((n_dim,voxel_limits_z.shape[0]))
+    for n in prange(n_dim):
+        x_mu_sigma[n,:]=(voxel_limits_x-coordinates[n,0])/sigma[0] #(n,x+1+2*p)
+        y_mu_sigma[n,:]=(voxel_limits_y-coordinates[n,1])/sigma[1] #(n,x+1+2*p)
+        z_mu_sigma[n,:]=(voxel_limits_z-coordinates[n,2])/sigma[2] #(n,x+1+2*p)
+
+    phix=(1+numba_erf(x_mu_sigma))/2 #(n,x+1+2*p)
+    phiy=(1+numba_erf(y_mu_sigma))/2 #(n,y+1+2*p)
+    phiz=(1+numba_erf(z_mu_sigma))/2 #(n,z+1+2*p)
+    
+    dphix_dx= -np.exp(-x_mu_sigma**2) / np.sqrt(np.pi) / sigma[0] #(n,x+1+2*p)
+    dphiy_dy= -np.exp(-y_mu_sigma**2) / np.sqrt(np.pi) / sigma[1] #(n,y+1+2*p)
+    dphiz_dz= -np.exp(-z_mu_sigma**2) / np.sqrt(np.pi) / sigma[2] #(n,z+1+2*p)
+    
+    dphix_ds= x_mu_sigma*dphix_dx*np.sqrt(2) #(n,x+1+2*p)
+    dphiy_ds= y_mu_sigma*dphiy_dy*np.sqrt(2) #(n,y+1+2*p)
+    dphiz_ds= z_mu_sigma*dphiz_dz*np.sqrt(2) #(n,z+1+2*p)
+    
+    dphix=substract_and_fold(phix, padding) #(n,x)
+    dphiy=substract_and_fold(phiy, padding) #(n,y)
+    dphiz=substract_and_fold(phiz, padding) #(n,z)
+    
+    ddphix_dx=substract_and_fold(dphix_dx, padding) #(n,x)
+    ddphiy_dy=substract_and_fold(dphiy_dy, padding) #(n,y)
+    ddphiz_dz=substract_and_fold(dphiz_dz, padding) #(n,z)
+    
+    ddphix_ds=substract_and_fold(dphix_ds, padding) #(n,x)
+    ddphiy_ds=substract_and_fold(dphiy_ds, padding) #(n,y)
+    ddphiz_ds=substract_and_fold(dphiz_ds, padding) #(n,z)
+    
+    exp=experimental_map
+    
+    #Calculate sim
     sim=np.zeros((i_dim,j_dim,k_dim), dtype=np.float64)
     for n in prange(n_dim):
         i_min,i_max,j_min,j_max,k_min,k_max=limits[n]
@@ -239,10 +273,9 @@ def calculate_sim(n_dim,i_dim,j_dim,k_dim,limits,padding,dphix,dphiy,dphiz):
                 for k in range(k_min,k_max+1):
                     k=(k-padding)%k_dim
                     sim[i,j,k]+=dphix[n,i]*dphiy[n,j]*dphiz[n,k]
-    return sim
-
-@jit(nopython=True,parallel=True)
-def calculate_dcorr(n_dim,i_dim,j_dim,k_dim,limits,padding,dphix,dphiy,dphiz,ddphix_dx,ddphiy_dy,ddphiz_dz,ddphix_ds,ddphiy_ds,ddphiz_ds,exp,sim):
+    # sim=calculate_sim(n_dim,i_dim,j_dim,k_dim,limits,padding,dphix,dphiy,dphiz)
+    
+    # return calculate_dcorr(n_dim,i_dim,j_dim,k_dim,limits,padding,dphix,dphiy,dphiz,ddphix_dx,ddphiy_dy,ddphiz_dz,ddphix_ds,ddphiy_ds,ddphiz_ds,exp,sim)
     num1 = np.zeros((n_dim,6), dtype=np.float64)
     num2 = np.zeros((n_dim,6), dtype=np.float64)
     
@@ -275,63 +308,6 @@ def calculate_dcorr(n_dim,i_dim,j_dim,k_dim,limits,padding,dphix,dphiy,dphiz,ddp
     
     result=((num1 / den1) - (num2 / den2))
     return result
-
-
-@jit(nopython=True)
-def dcorr_v3(coordinates,voxel_limits_x,voxel_limits_y,voxel_limits_z,sigma, experimental_map,padding,multiplier):
-    min_coords = (coordinates - multiplier * sigma)
-    max_coords = (coordinates + multiplier * sigma)
-    
-    limits=np.zeros((coordinates.shape[0],6),dtype=np.int64)
-    
-    limits[:,0]=np.searchsorted(voxel_limits_x,min_coords[:,0])-1
-    limits[:,1]=np.searchsorted(voxel_limits_x,max_coords[:,0])+1
-    limits[:,2]=np.searchsorted(voxel_limits_y,min_coords[:,1])-1
-    limits[:,3]=np.searchsorted(voxel_limits_y,max_coords[:,1])+1
-    limits[:,4]=np.searchsorted(voxel_limits_z,min_coords[:,2])-1
-    limits[:,5]=np.searchsorted(voxel_limits_z,max_coords[:,2])+1
-    
-    sigma=sigma*np.sqrt(2) #(3,)
-    
-    x_mu_sigma=(voxel_limits_x-coordinates[:,0:1])/sigma[0] #(n,x+1+2*p)
-    y_mu_sigma=(voxel_limits_y-coordinates[:,1:2])/sigma[1] #(n,y+1+2*p)
-    z_mu_sigma=(voxel_limits_z-coordinates[:,2:3])/sigma[2] #(n,z+1+2*p)
-    
-    phix=(1+numba_erf(x_mu_sigma))/2 #(n,x+1+2*p)
-    phiy=(1+numba_erf(y_mu_sigma))/2 #(n,y+1+2*p)
-    phiz=(1+numba_erf(z_mu_sigma))/2 #(n,z+1+2*p)
-    
-    dphix_dx= -np.exp(-x_mu_sigma**2) / np.sqrt(np.pi) / sigma[0] #(n,x+1+2*p)
-    dphiy_dy= -np.exp(-y_mu_sigma**2) / np.sqrt(np.pi) / sigma[1] #(n,y+1+2*p)
-    dphiz_dz= -np.exp(-z_mu_sigma**2) / np.sqrt(np.pi) / sigma[2] #(n,z+1+2*p)
-    
-    dphix_ds= x_mu_sigma*dphix_dx*np.sqrt(2) #(n,x+1+2*p)
-    dphiy_ds= y_mu_sigma*dphiy_dy*np.sqrt(2) #(n,y+1+2*p)
-    dphiz_ds= z_mu_sigma*dphiz_dz*np.sqrt(2) #(n,z+1+2*p)
-    
-    dphix=substract_and_fold(phix, padding) #(n,x)
-    dphiy=substract_and_fold(phiy, padding) #(n,y)
-    dphiz=substract_and_fold(phiz, padding) #(n,z)
-    
-    ddphix_dx=substract_and_fold(dphix_dx, padding) #(n,x)
-    ddphiy_dy=substract_and_fold(dphiy_dy, padding) #(n,y)
-    ddphiz_dz=substract_and_fold(dphiz_dz, padding) #(n,z)
-    
-    ddphix_ds=substract_and_fold(dphix_ds, padding) #(n,x)
-    ddphiy_ds=substract_and_fold(dphiy_ds, padding) #(n,y)
-    ddphiz_ds=substract_and_fold(dphiz_ds, padding) #(n,z)
-    
-    exp=experimental_map
-    
-    n_dim = dphix.shape[0]
-    i_dim = dphix.shape[1]
-    j_dim = dphiy.shape[1]
-    k_dim = dphiz.shape[1]
-    
-    sim=calculate_sim(n_dim,i_dim,j_dim,k_dim,limits,padding,dphix,dphiy,dphiz)
-    
-    return calculate_dcorr(n_dim,i_dim,j_dim,k_dim,limits,padding,dphix,dphiy,dphiz,ddphix_dx,ddphiy_dy,ddphiz_dz,ddphix_ds,ddphiy_ds,ddphiz_ds,exp,sim)
-
 
 coordinates=np.random.rand(100,3)*(10,20,5)
 experimental_map=np.random.rand(10,20,5)
