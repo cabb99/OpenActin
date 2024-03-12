@@ -10,7 +10,7 @@ class MDFit:
         self.sigma=sigma
         self.n_voxels=np.array(experimental_map.shape)
         self.voxel_size=np.array(voxel_size)
-        self.padding=np.ceil(5*np.max(self.sigma.max(axis=0)/self.voxel_size))
+        self.padding=int(np.ceil(5*np.max(self.sigma.max(axis=0)/self.voxel_size)))
         self.voxel_limits=[np.arange(-self.padding,self.n_voxels[0]+1+self.padding)*voxel_size[0],
                            np.arange(-self.padding,self.n_voxels[1]+1+self.padding)*voxel_size[1],
                            np.arange(-self.padding,self.n_voxels[2]+1+self.padding)*voxel_size[2]]
@@ -183,7 +183,7 @@ class MDFit:
         den2 = np.sum(sim**2) * den1
         
         # Final equation
-        return ((num1 / den1) - (num2 / den2))[:,:3]
+        return ((num1 / den1) - (num2 / den2))
     
     def dcorr_coef(self):
         return dcorr_v3(self.coordinates,self.n_voxels,self.voxel_size,self.sigma, self.experimental_map,self.padding,5)
@@ -192,7 +192,11 @@ class MDFit:
         assert np.allclose(self.dsim_map()['dx'],self.dsim_map_numerical()['dx'])
         assert np.allclose(self.dsim_map()['dy'],self.dsim_map_numerical()['dy'])
         assert np.allclose(self.dsim_map()['dz'],self.dsim_map_numerical()['dz'])
-        assert np.allclose(self.dcorr_coef(),self.dcorr_coef_numerical())
+        assert np.allclose(self.dcorr_coef()[:,:3],self.dcorr_coef_numerical())
+        assert np.allclose(self.dcorr_coef_numpy(),self.dcorr_coef_numerical())
+        assert np.allclose(self.dcorr_coef()[:,:3],self.dcorr_coef_numpy())
+        assert np.allclose(dcorr_v3(self.coordinates,self.n_voxels,self.voxel_size,self.sigma, self.experimental_map,self.padding,5)[:,:3],self.dcorr_coef_numpy())
+
 
 @vectorize([float64(float64)], nopython=True)
 def numba_erf(x):
@@ -317,10 +321,7 @@ nx,ny,nz=70,60,50
 coordinates=np.random.rand(10,3)*(nx,ny,nz)
 sigma=np.ones(coordinates.shape)
 experimental_map=np.random.rand(nx,ny,nz)
-self=MDFit(coordinates,sigma,experimental_map,voxel_size=[1,1,1],padding=4)
-assert np.allclose(self.dcorr_coef_numpy(),self.dcorr_coef_numerical())
-assert np.allclose(self.dcorr_coef()[:,:3],self.dcorr_coef_numpy())
-assert np.allclose(dcorr_v3(self.coordinates,self.n_voxels,self.voxel_size,self.sigma, self.experimental_map,self.padding,5)[:,:3],self.dcorr_coef_numpy())
-
+self=MDFit(coordinates,sigma,experimental_map,voxel_size=[1,1,1])
+self.test()
 
 
