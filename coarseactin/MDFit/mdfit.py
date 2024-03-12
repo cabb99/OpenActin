@@ -55,7 +55,7 @@ class MDFit:
         return (simulation_map*self.experimental_map).sum()/np.sqrt((simulation_map**2).sum()*(self.experimental_map**2).sum())
 
     def dcorr_coef_numerical(self, delta=1e-5):
-        num_derivatives = np.zeros(self.coordinates.shape)
+        num_derivatives = np.zeros((self.coordinates.shape[0],6))
     
         for i in range(self.coordinates.shape[0]):
             for j in range(self.coordinates.shape[1]):
@@ -72,6 +72,20 @@ class MDFit:
                 
                 # Reset coordinates to original value
                 self.coordinates[i, j] += delta
+            for j in range(self.sigma.shape[1]):
+                # Perturb coordinates positively
+                self.sigma[i, j] += delta
+                positive_corr_coef = self.corr_coef()
+                
+                # Perturb coordinates negatively
+                self.sigma[i, j] -= 2*delta
+                negative_corr_coef = self.corr_coef()
+                
+                # Compute numerical derivative
+                num_derivatives[i, j+3] = (positive_corr_coef - negative_corr_coef) / (2*delta)
+                
+                # Reset coordinates to original value
+                self.sigma[i, j] += delta
                 
         return num_derivatives
 
@@ -192,10 +206,11 @@ class MDFit:
         assert np.allclose(self.dsim_map()['dx'],self.dsim_map_numerical()['dx'])
         assert np.allclose(self.dsim_map()['dy'],self.dsim_map_numerical()['dy'])
         assert np.allclose(self.dsim_map()['dz'],self.dsim_map_numerical()['dz'])
-        assert np.allclose(self.dcorr_coef()[:,:3],self.dcorr_coef_numerical())
-        assert np.allclose(self.dcorr_coef_numpy(),self.dcorr_coef_numerical())
-        assert np.allclose(self.dcorr_coef()[:,:3],self.dcorr_coef_numpy())
-        assert np.allclose(dcorr_v3(self.coordinates,self.n_voxels,self.voxel_size,self.sigma, self.experimental_map,self.padding,5)[:,:3],self.dcorr_coef_numpy())
+        assert np.allclose(self.dcorr_coef()[:,:3],self.dcorr_coef_numerical()[:,:3])
+        assert np.allclose(self.dcorr_coef_numpy()[:,:3],self.dcorr_coef_numerical()[:,:3])
+        assert np.allclose(self.dcorr_coef()[:,:3],self.dcorr_coef_numpy()[:,:3])
+        assert np.allclose(self.dcorr_coef()[:,3:],self.dcorr_coef_numpy()[:,3:],atol=1e-5)
+        assert np.allclose(dcorr_v3(self.coordinates,self.n_voxels,self.voxel_size,self.sigma, self.experimental_map,self.padding,5),self.dcorr_coef_numpy(),atol=1e-5)
 
 
 @vectorize([float64(float64)], nopython=True)
