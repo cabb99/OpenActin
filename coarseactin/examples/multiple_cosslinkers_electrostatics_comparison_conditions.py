@@ -10,7 +10,7 @@
 #SBATCH --export=ALL
 #SBATCH --mail-user=ne25@rice.edu
 #SBATCH --mail-type=ALL
-#SBATCH --array=0-5 
+#SBATCH --array=0-47 
 #SBATCH --mem=16G
 
 import sys # Import the sys module for interacting with the Python interpreter
@@ -34,23 +34,23 @@ if __name__ == '__main__': # makes sure that the following code is executed only
                 #the corresponding value so (100) refers to the possible list of values the parameter can take
                 # affinity of the crosslinkers to the binding site  
                   "epsilon_CAM": [100],
-                  "aligned": [True],
+                  "aligned": [True,False],
                   "actinLen": [100],
                   # "layers": [3],
                   "repetition":range(3),
                   "disorder": [0],
-                  "box_size": [10000],
+                  "box_size": [10000,20000],
                   "n_actins": [20],
                   "n_FAS": [200], # TODO look for abp concentrations in brain
                   "n_AAC": [200],
-                  "n_CBP":[200],
+                  "n_CBP":[0,200],
                   "temperature": [300],
                   "system2D": [False],
-                  "frequency": [1],
+                  "frequency": [10000],
                   "run_time": [20],
-                  "epsilon_electrostatics":[1],
+                  "epsilon_electrostatics":[0,1],
                   "actinin_electrostatics":[True], 
-                  "camkii_electrostatics":[True,False],
+                  "camkii_electrostatics":[True],
                   # "run_steps":[10000000], # nusayba changed to run
                   # "abp": ['FAS', 'CAM', 'CBP', 'AAC', 'AAC2', 'CAM2'], #Nusayba changed to run
                   "simulation_platform": ["OpenCL"]}
@@ -78,7 +78,7 @@ if __name__ == '__main__': # makes sure that the following code is executed only
     #     except TypeError:
     #         pass
   
-    sjob = coarseactin.SlurmJobArray("Simulations_scratch/Box_electrostatics_CBP/Run1", parameters, test_parameters) #This line creates an instance of the SlurmJobArray class from the coarseactin module. The constructor of the SlurmJobArray class takes four arguments: a file path "Simulations/Box/Boxv3", dictionaries parameters and test_parameters, and the job_id variable. This instance of sjob represents a job array for SLURM job submission.
+    sjob = coarseactin.SlurmJobArray("Simulations_scratch/Box_electrostatics_comparison_conditions/Run1", parameters, test_parameters) #This line creates an instance of the SlurmJobArray class from the coarseactin module. The constructor of the SlurmJobArray class takes four arguments: a file path "Simulations/Box/Boxv3", dictionaries parameters and test_parameters, and the job_id variable. This instance of sjob represents a job array for SLURM job submission.
     #sjob = coarseactin.SlurmJobArray("/Users/nusaybaelali/documents/fis/coarsegrainedactin/simulations/box/boxv6", parameters, test_parameters, job_id)
     sjob.print_parameters()
     sjob.print_slurm_variables()
@@ -98,7 +98,7 @@ if __name__ == '__main__': # makes sure that the following code is executed only
     size_factor = int(sjob['box_size']/10000)
     actinLen = sjob["actinLen"]*size_factor
     n_actins = sjob["n_actins"]*size_factor**2
-    n_FAS = sjob["n_FAS"]*size_factor**3 
+    n_FAS = sjob["n_FAS"]*size_factor**3        
     n_AAC = sjob["n_AAC"]*size_factor**3 
     n_CBP = sjob["n_CBP"]*size_factor**3 
 
@@ -280,7 +280,7 @@ if __name__ == '__main__': # makes sure that the following code is executed only
     print(energies)
 
     # Run
-    #simulation.minimizeEnergy()
+    simulation.minimizeEnergy()
     simulation.context.setVelocitiesToTemperature(temperature * u.kelvin)
     time0 = time.ctime()
     time_0 = time.time()

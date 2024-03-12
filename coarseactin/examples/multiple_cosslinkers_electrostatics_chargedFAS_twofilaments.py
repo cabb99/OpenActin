@@ -10,7 +10,7 @@
 #SBATCH --export=ALL
 #SBATCH --mail-user=ne25@rice.edu
 #SBATCH --mail-type=ALL
-#SBATCH --array=0-5 
+#SBATCH --array=0-9 
 #SBATCH --mem=16G
 
 import sys # Import the sys module for interacting with the Python interpreter
@@ -34,23 +34,22 @@ if __name__ == '__main__': # makes sure that the following code is executed only
                 #the corresponding value so (100) refers to the possible list of values the parameter can take
                 # affinity of the crosslinkers to the binding site  
                   "epsilon_CAM": [100],
-                  "aligned": [True],
-                  "actinLen": [100],
+                  "aligned": [True,False],
+                  "actinLen": [200],
                   # "layers": [3],
-                  "repetition":range(3),
+                  "repetition":range(5),
                   "disorder": [0],
-                  "box_size": [10000],
-                  "n_actins": [20],
-                  "n_FAS": [200], # TODO look for abp concentrations in brain
-                  "n_AAC": [200],
-                  "n_CBP":[200],
+                  "box_size": [20000],
+                  "n_actins": [2],
+                  "n_FAS": [800],
+                  "n_AAC": [800],
+                  "n_CAM":[0],
                   "temperature": [300],
                   "system2D": [False],
-                  "frequency": [1],
+                  "frequency": [10000],
                   "run_time": [20],
                   "epsilon_electrostatics":[1],
                   "actinin_electrostatics":[True], 
-                  "camkii_electrostatics":[True,False],
                   # "run_steps":[10000000], # nusayba changed to run
                   # "abp": ['FAS', 'CAM', 'CBP', 'AAC', 'AAC2', 'CAM2'], #Nusayba changed to run
                   "simulation_platform": ["OpenCL"]}
@@ -78,7 +77,7 @@ if __name__ == '__main__': # makes sure that the following code is executed only
     #     except TypeError:
     #         pass
   
-    sjob = coarseactin.SlurmJobArray("Simulations_scratch/Box_electrostatics_CBP/Run1", parameters, test_parameters) #This line creates an instance of the SlurmJobArray class from the coarseactin module. The constructor of the SlurmJobArray class takes four arguments: a file path "Simulations/Box/Boxv3", dictionaries parameters and test_parameters, and the job_id variable. This instance of sjob represents a job array for SLURM job submission.
+    sjob = coarseactin.SlurmJobArray("Simulations_scratch/Box_chargedFAS_twofilaments_corrected/Run1", parameters, test_parameters) #This line creates an instance of the SlurmJobArray class from the coarseactin module. The constructor of the SlurmJobArray class takes four arguments: a file path "Simulations/Box/Boxv3", dictionaries parameters and test_parameters, and the job_id variable. This instance of sjob represents a job array for SLURM job submission.
     #sjob = coarseactin.SlurmJobArray("/Users/nusaybaelali/documents/fis/coarsegrainedactin/simulations/box/boxv6", parameters, test_parameters, job_id)
     sjob.print_parameters()
     sjob.print_slurm_variables()
@@ -95,13 +94,18 @@ if __name__ == '__main__': # makes sure that the following code is executed only
     Sname = sjob.name
     simulation_platform = sjob["simulation_platform"]
 
-    size_factor = int(sjob['box_size']/10000)
-    actinLen = sjob["actinLen"]*size_factor
-    n_actins = sjob["n_actins"]*size_factor**2
-    n_FAS = sjob["n_FAS"]*size_factor**3 
-    n_AAC = sjob["n_AAC"]*size_factor**3 
-    n_CBP = sjob["n_CBP"]*size_factor**3 
+    #size_factor = int(sjob['box_size']/10000)
+    # actinLen = sjob["actinLen"]*size_factor
+    # n_actins = sjob["n_actins"]*size_factor**2
+    # n_FAS = sjob["n_FAS"]*size_factor**3 
+    # n_AAC = sjob["n_AAC"]*size_factor**3 
+    # n_CAM = sjob["n_CAM"]*size_factor**3 
 
+    actinLen = sjob["actinLen"]
+    n_actins = sjob["n_actins"]
+    n_FAS = sjob["n_FAS"]
+    n_AAC = sjob["n_AAC"]
+    n_CAM = sjob["n_CAM"]
 
     # if sjob['abp'] in ['CAM','CAM2']:
     #     camkii_force='multigaussian'
@@ -133,11 +137,11 @@ if __name__ == '__main__': # makes sure that the following code is executed only
                        rotation=strans.Rotation.random().as_matrix(),
                        abp="AAC")]
 
-    #Add CBP
-    for i in range(n_CBP):
+    #Add CAM
+    for i in range(n_CAM):
         full_model += [coarseactin.create_abp(translation=np.random.random(3)*sjob["box_size"],
                        rotation=strans.Rotation.random().as_matrix(),
-                       abp="CBP")]
+                       abp="CAM")]
         
     print('Concatenate chains')
     full_model = coarseactin.Scene.concatenate(full_model)
@@ -164,7 +168,6 @@ if __name__ == '__main__': # makes sure that the following code is executed only
     import simtk.unit as u
     import time
     from sys import stdout
-    import numpy as np
 
     time.ctime()
 
@@ -181,7 +184,7 @@ if __name__ == '__main__': # makes sure that the following code is executed only
         assert len(cm.index) == len(cb.index)
         assert len(cm.index) == 12
         for i0, i1 in zip(cm.index,cb.index):
-            extra_bonds += [['CBP', 'harmonic', i0, i1, 0, 10, 0, 50.00, 0, np.nan, np.nan,'1Cb-2Cb']]
+            extra_bonds += [['CBP', i0, i1, 0, 10, 0, 31.77, 0, '1Cb-2Cb']]
 
     extra_bonds=pd.DataFrame(extra_bonds,columns=s.bonds.columns,index=range(s.bonds.index.max() + 1,s.bonds.index.max() + 1+ len(extra_bonds)))
     s.bonds = pd.concat([s.bonds, extra_bonds], ignore_index=True)
@@ -192,10 +195,10 @@ if __name__ == '__main__': # makes sure that the following code is executed only
 
     print(s.system.getDefaultPeriodicBoxVectors())
 
-    # if sjob["n_CAM"]>0:
-    #     s.setForces(AlignmentConstraint=aligned, PlaneConstraint=system2D, forces=['multigaussian','abp'])
-    # else: 
-    s.setForces(AlignmentConstraint=aligned, PlaneConstraint=system2D, forces=['abp'])
+    if sjob["n_CAM"]>0:
+        s.setForces(AlignmentConstraint=aligned, PlaneConstraint=system2D, forces=['multigaussian','abp'])
+    else: 
+        s.setForces(AlignmentConstraint=aligned, PlaneConstraint=system2D, forces=['abp'])
 
     
     # Add electrostatics
@@ -221,16 +224,6 @@ if __name__ == '__main__': # makes sure that the following code is executed only
                 q=-31.0/3 #Calculated by counting the charge of the sequence. Find good values (Charge or actin per subunit or per monomer) Charge units
             else:
                 q=0
-        elif a.residue_name in ['CBP'] and a.name in ['C01', 'C02', 'C03', 'C04', 'C05', 'C06', 'C07', 'C08', 'C09', 'C10', 'C11', 'C12']: 
-            if sjob["camkii_electrostatics"]: 
-                q=-3.5
-            else:
-                q=0
-        elif a.residue_name in ['CBP'] and a.name in ['Ca','Cb','Cd']: 
-            if sjob["camkii_electrostatics"]: 
-                q=8
-            else:
-                q=0
         else:
             q=0
         electrostatics.addParticle([q]) 
@@ -247,10 +240,10 @@ if __name__ == '__main__': # makes sure that the following code is executed only
     simulation.context.setPositions(coord.positions)
 
     # Modify parameters
-    # if sjob["n_CAM"]>0:
-    #     simulation.context.setParameter("g_eps", sjob["epsilon_CAM"])
+    if sjob["n_CAM"]>0:
+        simulation.context.setParameter("g_eps", sjob["epsilon_CAM"])
     
-    # simulation.context.setParameter("g_eps_ABP", sjob["epsilon_ABP"])
+    simulation.context.setParameter("g_eps_ABP", sjob["epsilon_ABP"])
     # simulation.context.setParameter("g_eps_ABP", sjob["epsilon_ABP"])
 
 
@@ -280,7 +273,7 @@ if __name__ == '__main__': # makes sure that the following code is executed only
     print(energies)
 
     # Run
-    #simulation.minimizeEnergy()
+    simulation.minimizeEnergy()
     simulation.context.setVelocitiesToTemperature(temperature * u.kelvin)
     time0 = time.ctime()
     time_0 = time.time()
