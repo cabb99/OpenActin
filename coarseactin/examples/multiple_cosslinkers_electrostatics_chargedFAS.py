@@ -39,11 +39,11 @@ if __name__ == '__main__': # makes sure that the following code is executed only
                   # "layers": [3],
                   "repetition":range(3),
                   "disorder": [0],
-                  "box_size": [10000,20000],
+                  "box_size": [10000],
                   "n_actins": [20],
                   "n_FAS": [200],
                   "n_AAC": [200],
-                  "n_CAM":[0],
+                  "n_CBP":[200],
                   "temperature": [300],
                   "system2D": [False],
                   "frequency": [10000],
@@ -99,7 +99,7 @@ if __name__ == '__main__': # makes sure that the following code is executed only
     n_actins = sjob["n_actins"]*size_factor**2
     n_FAS = sjob["n_FAS"]*size_factor**3 
     n_AAC = sjob["n_AAC"]*size_factor**3 
-    n_CAM = sjob["n_CAM"]*size_factor**3 
+    n_CBP = sjob["n_CBP"]*size_factor**3 
 
 
     # if sjob['abp'] in ['CAM','CAM2']:
@@ -132,11 +132,11 @@ if __name__ == '__main__': # makes sure that the following code is executed only
                        rotation=strans.Rotation.random().as_matrix(),
                        abp="AAC")]
 
-    #Add CAM
-    for i in range(n_CAM):
+    #Add CBP
+    for i in range(n_CBP):
         full_model += [coarseactin.create_abp(translation=np.random.random(3)*sjob["box_size"],
                        rotation=strans.Rotation.random().as_matrix(),
-                       abp="CAM")]
+                       abp="CBP")]
         
     print('Concatenate chains')
     full_model = coarseactin.Scene.concatenate(full_model)
@@ -163,6 +163,7 @@ if __name__ == '__main__': # makes sure that the following code is executed only
     import simtk.unit as u
     import time
     from sys import stdout
+    import numpy as np
 
     time.ctime()
 
@@ -179,7 +180,7 @@ if __name__ == '__main__': # makes sure that the following code is executed only
         assert len(cm.index) == len(cb.index)
         assert len(cm.index) == 12
         for i0, i1 in zip(cm.index,cb.index):
-            extra_bonds += [['CBP', i0, i1, 0, 10, 0, 31.77, 0, '1Cb-2Cb']]
+            extra_bonds += [['CBP', 'harmonic', i0, i1, 0, 10, 0, 50.00, 0, np.nan, np.nan,'1Cb-2Cb']]
 
     extra_bonds=pd.DataFrame(extra_bonds,columns=s.bonds.columns,index=range(s.bonds.index.max() + 1,s.bonds.index.max() + 1+ len(extra_bonds)))
     s.bonds = pd.concat([s.bonds, extra_bonds], ignore_index=True)
@@ -190,10 +191,10 @@ if __name__ == '__main__': # makes sure that the following code is executed only
 
     print(s.system.getDefaultPeriodicBoxVectors())
 
-    if sjob["n_CAM"]>0:
-        s.setForces(AlignmentConstraint=aligned, PlaneConstraint=system2D, forces=['multigaussian','abp'])
-    else: 
-        s.setForces(AlignmentConstraint=aligned, PlaneConstraint=system2D, forces=['abp'])
+    # if sjob["n_CAM"]>0:
+    #     s.setForces(AlignmentConstraint=aligned, PlaneConstraint=system2D, forces=['multigaussian','abp'])
+    # else: 
+    s.setForces(AlignmentConstraint=aligned, PlaneConstraint=system2D, forces=['abp'])
 
     
     # Add electrostatics
@@ -235,10 +236,10 @@ if __name__ == '__main__': # makes sure that the following code is executed only
     simulation.context.setPositions(coord.positions)
 
     # Modify parameters
-    if sjob["n_CAM"]>0:
-        simulation.context.setParameter("g_eps", sjob["epsilon_CAM"])
+    # if sjob["n_CAM"]>0:
+    #     simulation.context.setParameter("g_eps", sjob["epsilon_CAM"])
     
-    simulation.context.setParameter("g_eps_ABP", sjob["epsilon_ABP"])
+    # simulation.context.setParameter("g_eps_ABP", sjob["epsilon_ABP"])
     # simulation.context.setParameter("g_eps_ABP", sjob["epsilon_ABP"])
 
 

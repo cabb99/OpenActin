@@ -680,7 +680,7 @@ class CoarseActin:
         cw4 = np.array(virtual_sites_definition.loc[[('CaMKII', 'C7')], ['w12', 'w13', 'wcross']].squeeze())
 
         # Virtual sites
-        for _, res in self.atom_list.groupby(['chain_index', 'residue_id']):
+        for chain_res, res in self.atom_list.groupby(['chain_index', 'residue_id']):
             assert len(res['residue_name'].unique()) == 1, print(len(res['residue_name'].unique()), _,
                                                                  res['residue_name'].unique())
             resname = res['residue_name'].unique()[0]
@@ -751,6 +751,22 @@ class CoarseActin:
                 self.system.setVirtualSite(ix['C07'], c07)
                 self.system.setVirtualSite(ix['C10'], c10)
                 self.system.setVirtualSite(ix['Cc'], cc)
+            if resname == 'AAC':
+                res2=self.atom_list[(self.atom_list['chain_index']==chain_res[0]) & (self.atom_list['residue_index']!=chain_res[1])]
+                ix2 = dict(list(zip(res2['atom_name'], res2['atom_index'])))
+                print(chain_res)
+                print(res2)
+                print(ix2)
+                # Parent sites
+                c1 = ix['Cb']
+                c2 = ix2['Cb']
+                print(ix)
+                # Virtual site positions
+                cy1 = openmm.TwoParticleAverageSite(c1, c2, 0.8, 0.2)
+                cy2 = openmm.TwoParticleAverageSite(c1, c2, 0.6, 0.4)
+                # Set up virtual positions
+                self.system.setVirtualSite(ix['Cy1'], cy1)
+                self.system.setVirtualSite(ix['Cy2'], cy2)
         self.atom_list['Virtual'] = [self.system.isVirtualSite(a) for a in range(len(self.atom_list))]
 
     def ComputeTopology(self):

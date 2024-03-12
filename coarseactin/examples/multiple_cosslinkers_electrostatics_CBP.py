@@ -46,7 +46,7 @@ if __name__ == '__main__': # makes sure that the following code is executed only
                   "n_CBP":[200],
                   "temperature": [300],
                   "system2D": [False],
-                  "frequency": [10000],
+                  "frequency": [1],
                   "run_time": [20],
                   "epsilon_electrostatics":[1],
                   "actinin_electrostatics":[True], 
@@ -269,7 +269,7 @@ if __name__ == '__main__': # makes sure that the following code is executed only
     print(energies)
 
     # Run
-    simulation.minimizeEnergy()
+    #simulation.minimizeEnergy()
     simulation.context.setVelocitiesToTemperature(temperature * u.kelvin)
     time0 = time.ctime()
     time_0 = time.time()
