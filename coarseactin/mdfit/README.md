@@ -114,11 +114,11 @@ Where $\rho_{\text{exp}}(i,j,k)$ represents the experimental density at the voxe
 The derivatives of the function $\Phi(x; \mu, \sigma) = \frac{1}{2} \left[ 1 + \text{erf}\left( \frac{x-\mu}{\sigma\sqrt{2}} \right) \right]$ are as follows:
 
 - In terms of $\mu$:
-- 
+
 $$ \frac{\partial \Phi}{\partial \mu} = -\frac{e^{-\frac{(x -\mu)^2}{2\sigma^2}}}{\sqrt{2\pi}\sigma} $$
 
 - In terms of $\sigma$:
-- 
+
 $$ \frac{\partial \Phi}{\partial \sigma} = -\frac{(x - \mu)e^{-\frac{(x - \mu)^2}{2\sigma^2}}}{\sqrt{2\pi}\sigma^2} $$
 
 Then the derivative of $\frac{\partial \rho_{\text{sim}}(i,j,k)}{\partial x_n}$ would be for example: 
