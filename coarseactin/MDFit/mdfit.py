@@ -4,16 +4,16 @@ import math
 from scipy.special import erf
 
 class MDFit:
-    def __init__(self, coordinates, sigma, experimental_map,voxel_size,padding=3):
+    def __init__(self, coordinates, sigma, experimental_map,voxel_size):
         self.coordinates=coordinates
         self.experimental_map=experimental_map
         self.sigma=sigma
-        self.padding=padding
         self.n_voxels=np.array(experimental_map.shape)
         self.voxel_size=np.array(voxel_size)
-        self.voxel_limits=[np.arange(-padding,self.n_voxels[0]+1+padding)*voxel_size[0],
-                           np.arange(-padding,self.n_voxels[1]+1+padding)*voxel_size[1],
-                           np.arange(-padding,self.n_voxels[2]+1+padding)*voxel_size[2]]
+        self.padding=np.ceil(5*np.max(self.sigma.max(axis=0)/self.voxel_size))
+        self.voxel_limits=[np.arange(-self.padding,self.n_voxels[0]+1+self.padding)*voxel_size[0],
+                           np.arange(-self.padding,self.n_voxels[1]+1+self.padding)*voxel_size[1],
+                           np.arange(-self.padding,self.n_voxels[2]+1+self.padding)*voxel_size[2]]
 
     def fold_padding(self,volume_map):
         p=self.padding
@@ -56,7 +56,6 @@ class MDFit:
 
     def dcorr_coef_numerical(self, delta=1e-5):
         num_derivatives = np.zeros(self.coordinates.shape)
-        original_corr_coef = self.corr_coef()
     
         for i in range(self.coordinates.shape[0]):
             for j in range(self.coordinates.shape[1]):
@@ -188,6 +187,7 @@ class MDFit:
     
     def dcorr_coef(self):
         return dcorr_v3(self.coordinates,self.n_voxels,self.voxel_size,self.sigma, self.experimental_map,self.padding,5)
+    
     def test(self):
         assert np.allclose(self.dsim_map()['dx'],self.dsim_map_numerical()['dx'])
         assert np.allclose(self.dsim_map()['dy'],self.dsim_map_numerical()['dy'])
