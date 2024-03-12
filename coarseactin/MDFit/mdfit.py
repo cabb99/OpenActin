@@ -7,13 +7,13 @@ class MDFit:
     def __init__(self, coordinates, sigma, experimental_map,voxel_size,padding=3):
         self.coordinates=coordinates
         self.experimental_map=experimental_map
-        self.sigma=np.array([1,1,1])
+        self.sigma=sigma
         self.padding=padding
         self.n_voxels=np.array(experimental_map.shape)
         self.voxel_size=np.array(voxel_size)
-        self.voxel_limits=[np.arange(-padding,n_voxels[0]+1+padding)*voxel_size[0],
-                           np.arange(-padding,n_voxels[1]+1+padding)*voxel_size[1],
-                           np.arange(-padding,n_voxels[2]+1+padding)*voxel_size[2]]
+        self.voxel_limits=[np.arange(-padding,self.n_voxels[0]+1+padding)*voxel_size[0],
+                           np.arange(-padding,self.n_voxels[1]+1+padding)*voxel_size[1],
+                           np.arange(-padding,self.n_voxels[2]+1+padding)*voxel_size[2]]
 
     def fold_padding(self,volume_map):
         p=self.padding
@@ -38,9 +38,9 @@ class MDFit:
 
     def sim_map(self):
         sigma=self.sigma*np.sqrt(2)
-        phix=(1+erf((self.voxel_limits[0]-self.coordinates[:,None,0])/sigma[0]))/2
-        phiy=(1+erf((self.voxel_limits[1]-self.coordinates[:,None,1])/sigma[1]))/2
-        phiz=(1+erf((self.voxel_limits[2]-self.coordinates[:,None,2])/sigma[2]))/2
+        phix=(1+erf((self.voxel_limits[0]-self.coordinates[:,None,0])/sigma[:,None,0]))/2
+        phiy=(1+erf((self.voxel_limits[1]-self.coordinates[:,None,1])/sigma[:,None,1]))/2
+        phiz=(1+erf((self.voxel_limits[2]-self.coordinates[:,None,2])/sigma[:,None,2]))/2
 
         dphix=(phix[:,1:]-phix[:,:-1])
         dphiy=(phiy[:,1:]-phiy[:,:-1])
@@ -129,17 +129,17 @@ class MDFit:
     def dsim_map(self):
         sigma=self.sigma*np.sqrt(2)
 
-        x_mu_sigma=(self.voxel_limits[0]-self.coordinates[:,None,0])/sigma[0]
-        y_mu_sigma=(self.voxel_limits[1]-self.coordinates[:,None,1])/sigma[1]
-        z_mu_sigma=(self.voxel_limits[2]-self.coordinates[:,None,2])/sigma[2]
+        x_mu_sigma=(self.voxel_limits[0]-self.coordinates[:,None,0])/sigma[:,None,0]
+        y_mu_sigma=(self.voxel_limits[1]-self.coordinates[:,None,1])/sigma[:,None,1]
+        z_mu_sigma=(self.voxel_limits[2]-self.coordinates[:,None,2])/sigma[:,None,2]
         
         phix=(1+erf(x_mu_sigma))/2
         phiy=(1+erf(y_mu_sigma))/2
         phiz=(1+erf(z_mu_sigma))/2
         
-        dphix_dx= -np.exp(-x_mu_sigma**2) / np.sqrt(np.pi) / sigma[0]
-        dphiy_dy= -np.exp(-y_mu_sigma**2) / np.sqrt(np.pi) / sigma[1]
-        dphiz_dz= -np.exp(-z_mu_sigma**2) / np.sqrt(np.pi) / sigma[2]
+        dphix_dx= -np.exp(-x_mu_sigma**2) / np.sqrt(np.pi) / sigma[:,None,0]
+        dphiy_dy= -np.exp(-y_mu_sigma**2) / np.sqrt(np.pi) / sigma[:,None,1]
+        dphiz_dz= -np.exp(-z_mu_sigma**2) / np.sqrt(np.pi) / sigma[:,None,2]
         
         dphix_ds= x_mu_sigma*dphix_dx*np.sqrt(2)
         dphiy_ds= y_mu_sigma*dphiy_dy*np.sqrt(2)
@@ -233,17 +233,22 @@ def dcorr_v3(coordinates, n_voxels ,voxel_size ,sigma, experimental_map, padding
     y_mu_sigma=np.zeros((n_dim,voxel_limits_y.shape[0]))
     z_mu_sigma=np.zeros((n_dim,voxel_limits_z.shape[0]))
     for n in prange(n_dim):
-        x_mu_sigma[n,:]=(voxel_limits_x-coordinates[n,0])/sigma[0] #(n,x+1+2*p)
-        y_mu_sigma[n,:]=(voxel_limits_y-coordinates[n,1])/sigma[1] #(n,x+1+2*p)
-        z_mu_sigma[n,:]=(voxel_limits_z-coordinates[n,2])/sigma[2] #(n,x+1+2*p)
+        x_mu_sigma[n,:]=(voxel_limits_x-coordinates[n,0])/sigma[n,0] #(n,x+1+2*p)
+        y_mu_sigma[n,:]=(voxel_limits_y-coordinates[n,1])/sigma[n,1] #(n,x+1+2*p)
+        z_mu_sigma[n,:]=(voxel_limits_z-coordinates[n,2])/sigma[n,2] #(n,x+1+2*p)
 
     phix=(1+numba_erf(x_mu_sigma))/2 #(n,x+1+2*p)
     phiy=(1+numba_erf(y_mu_sigma))/2 #(n,y+1+2*p)
     phiz=(1+numba_erf(z_mu_sigma))/2 #(n,z+1+2*p)
     
-    dphix_dx= -np.exp(-x_mu_sigma**2) / np.sqrt(np.pi) / sigma[0] #(n,x+1+2*p)
-    dphiy_dy= -np.exp(-y_mu_sigma**2) / np.sqrt(np.pi) / sigma[1] #(n,y+1+2*p)
-    dphiz_dz= -np.exp(-z_mu_sigma**2) / np.sqrt(np.pi) / sigma[2] #(n,z+1+2*p)
+    
+    dphix_dx= np.zeros((n_dim,voxel_limits_x.shape[0])) #(n,x+1+2*p)
+    dphiy_dy= np.zeros((n_dim,voxel_limits_y.shape[0])) #(n,y+1+2*p)
+    dphiz_dz= np.zeros((n_dim,voxel_limits_z.shape[0])) #(n,z+1+2*p)
+    for n in prange(n_dim):
+        dphix_dx[n,:]= -np.exp(-x_mu_sigma[n,:]**2) / np.sqrt(np.pi) / sigma[n,0] #(n,x+1+2*p)
+        dphiy_dy[n,:]= -np.exp(-y_mu_sigma[n,:]**2) / np.sqrt(np.pi) / sigma[n,1] #(n,y+1+2*p)
+        dphiz_dz[n,:]= -np.exp(-z_mu_sigma[n,:]**2) / np.sqrt(np.pi) / sigma[n,2] #(n,z+1+2*p)
     
     dphix_ds= x_mu_sigma*dphix_dx*np.sqrt(2) #(n,x+1+2*p)
     dphiy_ds= y_mu_sigma*dphiy_dy*np.sqrt(2) #(n,y+1+2*p)
@@ -310,8 +315,9 @@ def dcorr_v3(coordinates, n_voxels ,voxel_size ,sigma, experimental_map, padding
 
 nx,ny,nz=70,60,50
 coordinates=np.random.rand(10,3)*(nx,ny,nz)
+sigma=np.ones(coordinates.shape)
 experimental_map=np.random.rand(nx,ny,nz)
-self=MDFit(coordinates,experimental_map,n_voxels=[nx,ny,nz],voxel_size=[1,1,1],padding=4)
+self=MDFit(coordinates,sigma,experimental_map,voxel_size=[1,1,1],padding=4)
 assert np.allclose(self.dcorr_coef_numpy(),self.dcorr_coef_numerical())
 assert np.allclose(self.dcorr_coef()[:,:3],self.dcorr_coef_numpy())
 assert np.allclose(dcorr_v3(self.coordinates,self.n_voxels,self.voxel_size,self.sigma, self.experimental_map,self.padding,5)[:,:3],self.dcorr_coef_numpy())
