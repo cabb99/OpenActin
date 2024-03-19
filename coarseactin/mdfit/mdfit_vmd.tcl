@@ -35,20 +35,12 @@ proc read_forces {filename} {
         }
         # At the end of a frame, append the frame's forces to the main list
         if {[eof $file] || [string match "Frame*" [peekNextLine $file]]} {
-            echo [llength $current_frame_forces]
-            echo [llength $forces]
             lappend forces $current_frame_forces
-            echo [llength $current_frame_forces]
-            echo [llength $forces]
         }
     }
     # Append the last frame's forces after exiting the loop
     if {[llength $current_frame_forces] > 0} {
-        echo [llength $current_frame_forces]
-        echo [llength $forces]
         lappend forces $current_frame_forces
-        echo [llength $current_frame_forces]
-        echo [llength $forces]
     }
     # Close the file
     close $file
@@ -58,10 +50,10 @@ proc read_forces {filename} {
 
 # Procedure to plot forces for a specified frame
 proc plot_forces_for_frame {forces frame_idx scale_factor arrow_color} {
-    set mol top
+    set molid top
     
     # Clear previous graphics
-    graphics $mol delete all
+    graphics $molid delete all
     
     # Get the list of forces for the specified frame
     set frame_forces [lindex $forces $frame_idx]
@@ -77,26 +69,42 @@ proc plot_forces_for_frame {forces frame_idx scale_factor arrow_color} {
         set atom_idx [expr {[lsearch $frame_forces $force]}]
         
         # Get the position of the atom
-        set pos [lindex [[atomselect $mol "index $atom_idx"] get {x y z}] 0]
+        set pos [lindex [[atomselect $molid "index $atom_idx" frame $frame_idx] get {x y z}] 0]
         
         # Calculate the end position of the arrow based on the force vector
-        set end_pos [list [expr {[lindex $pos 0] + $scale_factor * $force_x}] \
-                           [expr {[lindex $pos 1] + $scale_factor * $force_y}] \
-                           [expr {[lindex $pos 2] + $scale_factor * $force_z}]]
+        set end_pos [list [expr {[lindex $pos 0] + $scale_factor * 0.86 * $force_x}] \
+                           [expr {[lindex $pos 1] + $scale_factor * 0.86 * $force_y}] \
+                           [expr {[lindex $pos 2] + $scale_factor * 0.86 * $force_z}]]
         
         # Draw the arrow (cylinder + cone for the arrowhead)
-        graphics $mol color $arrow_color
-        graphics $mol cylinder $pos $end_pos radius 0.1
-        graphics $mol cone $end_pos [list [expr {[lindex $end_pos 0] + 0.1 * $force_x}] \
-                                       [expr {[lindex $end_pos 1] + 0.1 * $force_y}] \
-                                       [expr {[lindex $end_pos 2] + 0.1 * $force_z}]] radius 0.2
+        graphics $molid color $arrow_color
+        graphics $molid cylinder $pos $end_pos radius 0.15
+        graphics $molid cone $end_pos [list [expr {[lindex $end_pos 0] + $scale_factor * 0.145 * $force_x}] \
+                                       [expr {[lindex $end_pos 1] + $scale_factor * 0.145 * $force_y}] \
+                                       [expr {[lindex $end_pos 2] + $scale_factor * 0.145 * $force_z}]] radius 0.3
 
     }
     
     # Update the VMD scene to display the new graphics
+    animate goto $frame_idx
     display update
     update
 }
 
-set forces [read_forces "forces.txt"]
-plot_forces_for_frame $forces 0 0.1 "red" ;# Plot forces for frame 0 with scale factor 0.1 and red arrows
+proc animate_forces {forces} {
+    # Initialize parameters
+    set total_frames [molinfo top get numframes] ;
+    # set total_frames 25;
+
+    set rotation_angle 0 ;
+
+    for {set frame 0} {$frame < $total_frames} {incr frame} {
+        plot_forces_for_frame $forces $frame 10 "red"
+        rotate y by $rotation_angle
+        display update
+        render TachyonLOptiXInternal [format "frame_%05d.tga" $frame]
+    }
+}
+set forces [read_forces "forces.txt"]; set temp 1;
+#plot_forces_for_frame $forces 0 2 "blue" ;# Plot forces for frame 0 with scale factor 0.1 and red arrows
+#animate_forces $forces ;# Make force animation
