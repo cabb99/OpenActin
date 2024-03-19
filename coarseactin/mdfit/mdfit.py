@@ -398,15 +398,17 @@ def dcorr_v3(coordinates, n_voxels ,voxel_size ,sigma, epsilon, experimental_map
     result=((num1 / den1) - (num2 / den2)) #(n,7)
     return result
 
-nx,ny,nz=70,60,50
-coordinates=np.random.rand(10,3)*(nx,ny,nz)
-sigma=np.ones(coordinates.shape)
-epsilon=np.ones(coordinates.shape[0])
-experimental_map=np.random.rand(nx,ny,nz)
-self=MDFit(experimental_map,voxel_size=[1,1,1])
-self.set_coordinates(coordinates,sigma,epsilon)
-r1=self.dcorr_coef()
-r2=self.dcorr_coef_numerical()
-self.test()
+
+if __name__=='__main__':
+    nx,ny,nz=70,60,50
+    coordinates=np.random.rand(10,3)*(nx,ny,nz)
+    sigma=np.ones(coordinates.shape)
+    epsilon=np.ones(coordinates.shape[0])
+    experimental_map=np.random.rand(nx,ny,nz)
+    self=MDFit(experimental_map,voxel_size=[1,1,1])
+    self.set_coordinates(coordinates,sigma,epsilon)
+    r1=self.dcorr_coef()
+    r2=self.dcorr_coef_numerical()
+    self.test()
 
 
