@@ -1,7 +1,9 @@
 import numpy as np
-from numba import jit, prange, vectorize, float64
 import math
+from numba import jit, prange, vectorize, float64
 from scipy.special import erf
+from pathlib import Path
+
 
 class MDFit:
     def __init__(self, experimental_map, voxel_size=None, origin=None, dtype=np.float64):
@@ -66,15 +68,15 @@ class MDFit:
             # instead, use the attributes provided by the mrcfile library when possible.
             mrc.header.mapc, mrc.header.mapr, mrc.header.maps = 1, 2, 3
             mrc.header.mode = 2  # Mode 2 is commonly used for 32-bit floating point data
-            mrc.header.mx, mrc.header.my, mrc.header.mz = map_data.shape
-            mrc.header.nx, mrc.header.ny, mrc.header.nz = map_data.shape
+            mrc.header.mz, mrc.header.my, mrc.header.mx = map_data.shape
+            mrc.header.nz, mrc.header.ny, mrc.header.nx = map_data.shape
             mrc.header.nxstart, mrc.header.nystart, mrc.header.nzstart = 0, 0, 0
             mrc.header.cellb = (90.0, 90.0, 90.0)
             
             # Calculate cell dimensions based on voxel size and shape
-            mrc.header.cella = (map_data.shape[0] * self.voxel_size[0],
+            mrc.header.cella = (map_data.shape[2] * self.voxel_size[2],
                                 map_data.shape[1] * self.voxel_size[1],
-                                map_data.shape[2] * self.voxel_size[2])
+                                map_data.shape[0] * self.voxel_size[0])
             
 
             # Origin
@@ -86,6 +88,25 @@ class MDFit:
             mrc.update_header_stats()
             mrc.flush()
 
+    def compute_forces(topology_file, trajectory_file, output_file=None, overwrite=False):
+        import mdtraj
+        topology= mdtraj.load(topology_file)
+        trajectory=mdtraj.load(trajectory_file, top=topology)
+        
+        if output_file is None:
+            output_file = trajectory_file.replace(".dcd", "_forces.txt")
+        if Path(output_file).exists() and not overwrite:
+            raise FileExistsError(f"{output_file} already exists.")
+
+        # Saving the forces to a file
+        with open(output_file, "w") as file:
+            for frame_idx, frame in enumerate(trajectory):
+                self.set_coordinates(frame.xyz[0]*10,self.sigma,self.epsilon)
+                frame_forces=self.dcorr_coef()
+                file.write(f"Frame {frame_idx}\n")
+                for atom_idx, force in enumerate(frame_forces):
+                    file.write(f"{atom_idx} {force[0]} {force[1]} {force[2]} {force[3]} {force[4]} {force[5]} {force[6]}\n")
+    
     def add_force(self,system):
         import openmm
         n_particles=system.getNumParticles()
@@ -103,9 +124,9 @@ class MDFit:
         return force
     
     def periodic_vectors(self):
-        return [self.voxel_size[2]*self.n_voxels[2]/10,0,0],\
+        return [self.voxel_size[0]*self.n_voxels[0]/10,0,0],\
                [0,self.voxel_size[1]*self.n_voxels[1]/10,0],\
-               [0,0,self.voxel_size[0]*self.n_voxels[0]/10]
+               [0,0,self.voxel_size[2]*self.n_voxels[2]/10]
     
     def update_force(self,simulation, force=None, force_array=None):
         if force is None:
@@ -185,6 +206,9 @@ class MDFit:
         return vp
 
     def simulation_map(self):
+        return sim_map(self.coordinates, self.n_voxels, self.voxel_size, self.sigma, self.epsilon, self.padding, 5)
+    
+    def simulation_map_numpy(self):
         sigma=self.sigma*np.sqrt(2)
         phix=(1+erf((self.voxel_limits[0]-self.coordinates[:,None,0])/sigma[:,None,0]))/2
         phiy=(1+erf((self.voxel_limits[1]-self.coordinates[:,None,1])/sigma[:,None,1]))/2
@@ -194,7 +218,7 @@ class MDFit:
         dphiy=(phiy[:,1:]-phiy[:,:-1])
         dphiz=(phiz[:,1:]-phiz[:,:-1])
         
-        smap=(dphix[:,None,None,:]*dphiy[:,None,:,None]*dphiz[:,:,None,None]).sum(axis=0)
+        smap=(self.epsilon[:,None,None,None]*dphix[:,None,None,:]*dphiy[:,None,:,None]*dphiz[:,:,None,None]).sum(axis=0)
         
         return self.fold_padding(smap)
 
@@ -356,6 +380,7 @@ class MDFit:
         return dcorr_v3(self.coordinates,self.n_voxels,self.voxel_size,self.sigma, self.epsilon, self.experimental_map,self.padding,5)
     
     def test(self):
+        assert np.allclose(self.simulation_map(),self.simulation_map_numpy(),atol=1e-5)
         assert np.allclose(self.dsim_map()['dx'],self.dsim_map_numerical()['dx'])
         assert np.allclose(self.dsim_map()['dy'],self.dsim_map_numerical()['dy'])
         assert np.allclose(self.dsim_map()['dz'],self.dsim_map_numerical()['dz'])
@@ -364,6 +389,7 @@ class MDFit:
         assert np.allclose(self.dcorr_coef()[:,:3],self.dcorr_coef_numpy()[:,:3])
         assert np.allclose(self.dcorr_coef()[:,3:],self.dcorr_coef_numpy()[:,3:],atol=1e-5)
         assert np.allclose(dcorr_v3(self.coordinates,self.n_voxels,self.voxel_size,self.sigma,self.epsilon,self.experimental_map,self.padding,5),self.dcorr_coef_numpy(),atol=1e-5)
+        
 
 
 @vectorize([float64(float64)], nopython=True)
@@ -376,6 +402,69 @@ def substract_and_fold(arr,p):
     darr[:, -2*p:-p] += darr[:, :p]
     darr[:, p:2*p]   += darr[:, -p:]
     return darr[:,p:-p]
+
+@jit(nopython=True, parallel=True)
+def sim_map(coordinates, n_voxels ,voxel_size ,sigma, epsilon, padding, multiplier):
+    n_dim = coordinates.shape[0]
+    i_dim = n_voxels[0]
+    j_dim = n_voxels[1]
+    k_dim = n_voxels[2]
+
+    voxel_limits_x=np.arange(-padding,n_voxels[0]+1+padding)*voxel_size[0]
+    voxel_limits_y=np.arange(-padding,n_voxels[1]+1+padding)*voxel_size[1]
+    voxel_limits_z=np.arange(-padding,n_voxels[2]+1+padding)*voxel_size[2]
+    
+    min_coords = (coordinates - multiplier * sigma)
+    max_coords = (coordinates + multiplier * sigma)
+    
+    limits=np.zeros((coordinates.shape[0],6),dtype=np.int64)
+    
+    limits[:,0]=np.searchsorted(voxel_limits_x,min_coords[:,0])-1
+    limits[:,1]=np.searchsorted(voxel_limits_x,max_coords[:,0])+1
+    limits[:,2]=np.searchsorted(voxel_limits_y,min_coords[:,1])-1
+    limits[:,3]=np.searchsorted(voxel_limits_y,max_coords[:,1])+1
+    limits[:,4]=np.searchsorted(voxel_limits_z,min_coords[:,2])-1
+    limits[:,5]=np.searchsorted(voxel_limits_z,max_coords[:,2])+1
+    
+    sigma=sigma*np.sqrt(2) #(3,)
+    x_mu_sigma=np.zeros((n_dim,voxel_limits_x.shape[0]))
+    y_mu_sigma=np.zeros((n_dim,voxel_limits_y.shape[0]))
+    z_mu_sigma=np.zeros((n_dim,voxel_limits_z.shape[0]))
+    for n in prange(n_dim):
+        x_mu_sigma[n,:]=(voxel_limits_x-coordinates[n,0])/sigma[n,0] #(n,x+1+2*p)
+        y_mu_sigma[n,:]=(voxel_limits_y-coordinates[n,1])/sigma[n,1] #(n,x+1+2*p)
+        z_mu_sigma[n,:]=(voxel_limits_z-coordinates[n,2])/sigma[n,2] #(n,x+1+2*p)
+
+    phix=(1+numba_erf(x_mu_sigma))/2 #(n,x+1+2*p)
+    phiy=(1+numba_erf(y_mu_sigma))/2 #(n,y+1+2*p)
+    phiz=(1+numba_erf(z_mu_sigma))/2 #(n,z+1+2*p)
+    
+    
+    dphix_dx= np.zeros((n_dim,voxel_limits_x.shape[0])) #(n,x+1+2*p)
+    dphiy_dy= np.zeros((n_dim,voxel_limits_y.shape[0])) #(n,y+1+2*p)
+    dphiz_dz= np.zeros((n_dim,voxel_limits_z.shape[0])) #(n,z+1+2*p)
+    for n in prange(n_dim):
+        dphix_dx[n,:]= -np.exp(-x_mu_sigma[n,:]**2) / np.sqrt(np.pi) / sigma[n,0] #(n,x+1+2*p)
+        dphiy_dy[n,:]= -np.exp(-y_mu_sigma[n,:]**2) / np.sqrt(np.pi) / sigma[n,1] #(n,y+1+2*p)
+        dphiz_dz[n,:]= -np.exp(-z_mu_sigma[n,:]**2) / np.sqrt(np.pi) / sigma[n,2] #(n,z+1+2*p)
+    
+    dphix=substract_and_fold(phix, padding) #(n,x)
+    dphiy=substract_and_fold(phiy, padding) #(n,y)
+    dphiz=substract_and_fold(phiz, padding) #(n,z)
+    
+    #Calculate sim
+    sim=np.zeros((k_dim,j_dim,i_dim), dtype=np.float64) #(z,y,x)
+    for n in prange(n_dim):
+        eps_n=epsilon[n]
+        i_min,i_max,j_min,j_max,k_min,k_max=limits[n]
+        for k in range(k_min,k_max+1):
+            k=(k-padding)%k_dim
+            for j in range(j_min,j_max+1):
+                j=(j-padding)%j_dim
+                for i in range(i_min,i_max+1):
+                    i=(i-padding)%i_dim
+                    sim[k,j,i]+=eps_n*dphix[n,i]*dphiy[n,j]*dphiz[n,k]
+    return sim
 
 @jit(nopython=True, parallel=True)
 def dcorr_v3(coordinates, n_voxels ,voxel_size ,sigma, epsilon, experimental_map, padding, multiplier):
@@ -498,8 +587,11 @@ if __name__=='__main__':
     experimental_map=np.random.rand(nz,ny,nx)
     self=MDFit(experimental_map,voxel_size=[1,1,1])
     self.set_coordinates(coordinates,sigma,epsilon)
-    r1=self.dcorr_coef()
-    r2=self.dcorr_coef_numerical()
+    #r1=self.dcorr_coef()
+    #r2=self.dcorr_coef_numerical()
+    import matplotlib.pyplot as plt
+    r1=self.simulation_map()
+    r2=self.simulation_map_numpy()
     self.test()
 
 
