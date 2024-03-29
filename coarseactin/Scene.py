@@ -105,33 +105,21 @@ class Scene(pandas.DataFrame):
     @classmethod
     def from_pdb(cls, file, **kwargs):
         def pdb_line(line):
-            l = dict(recname=str(line[0:6]).strip(),
-                     serial=int(line[6:11]),
-                     name=str(line[12:16]).strip(),
-                     altLoc=str(line[16:17]).strip(),
-                     resName=str(line[17:20]).strip(),
-                     chainID=str(line[21:22]).strip(),
-                     resSeq=int(line[22:26]),
-                     iCode=str(line[26:27]).strip(),
-                     x=float(line[30:38]),
-                     y=float(line[38:46]),
-                     z=float(line[46:54]),
+            l = dict(recname=line[0:6].strip(),
+                     serial=line[6:11],
+                     name=line[12:16].strip(),
+                     altLoc=line[16:17].strip(),
+                     resName=line[17:20].strip(),
+                     chainID=line[21:22].strip(),
+                     resSeq=line[22:26],
+                     iCode=line[26:27].strip(),
+                     x=line[30:38],
+                     y=line[38:46],
+                     z=line[46:54],
                      occupancy=line[54:60].strip(),
                      tempFactor=line[60:66].strip(),
-                     element=str(line[76:78]).strip(),
-                     charge=str(line[78:80]).strip())
-            if l['occupancy'] == '':
-                l['occupancy'] = 1.0
-            else:
-                l['occupancy'] = float(l['occupancy'])
-            if l['tempFactor'] == '':
-                l['tempFactor'] = 1.0
-            else:
-                l['tempFactor'] = float(l['tempFactor'])
-            if l['charge'] == '':
-                l['charge'] = 0.0
-            else:
-                l['charge'] = float(l['charge'])
+                     element=line[76:78].strip(),
+                     charge=line[78:80].strip())
             return l
 
         with open(file, 'r') as pdb:
@@ -143,7 +131,13 @@ class Scene(pandas.DataFrame):
                 if len(line) > 6:
                     header = line[:6]
                     if header == 'ATOM  ' or header == 'HETATM':
-                        lines += [pdb_line(line)]
+                        try:
+                            lines += [pdb_line(line)]
+                        except ValueError as e:
+                            print(e)
+                            print(f"Error in line {i}")
+                            print(line)
+                            raise ValueError
                         model_numbers += [model_number]
                     elif header == "MODRES":
                         m = dict(recname=str(line[0:6]).strip(),
@@ -162,6 +156,16 @@ class Scene(pandas.DataFrame):
                                'resName', 'chainID', 'resSeq', 'iCode',
                                'x', 'y', 'z', 'occupancy', 'tempFactor',
                                'element', 'charge']]
+        
+        # Apply type conversions and set default values
+        pdb_atoms['serial'] = pandas.to_numeric(pdb_atoms['serial'], errors='coerce').fillna(0).astype(int)
+        pdb_atoms['resSeq'] = pandas.to_numeric(pdb_atoms['resSeq'], errors='coerce').fillna(0).astype(int)
+        pdb_atoms['x'] = pandas.to_numeric(pdb_atoms['x'], errors='coerce').fillna(0.0)
+        pdb_atoms['y'] = pandas.to_numeric(pdb_atoms['y'], errors='coerce').fillna(0.0)
+        pdb_atoms['z'] = pandas.to_numeric(pdb_atoms['z'], errors='coerce').fillna(0.0)
+        pdb_atoms['occupancy'] = pandas.to_numeric(pdb_atoms['occupancy'], errors='coerce').fillna(1.0)
+        pdb_atoms['tempFactor'] = pandas.to_numeric(pdb_atoms['tempFactor'], errors='coerce').fillna(1.0)
+        pdb_atoms['charge'] = pandas.to_numeric(pdb_atoms['tempFactor'], errors='coerce').fillna(0.0)
         pdb_atoms['model'] = model_numbers
 
         if len(mod_lines) > 0:
