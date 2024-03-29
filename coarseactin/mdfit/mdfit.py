@@ -37,7 +37,7 @@ class MDFit:
         self.force = None
 
     @classmethod
-    def from_mrc(cls, mrc_file,cutoff_min=None,cutoff_max=None):
+    def from_mrc(cls, mrc_file,cutoff_min=None,cutoff_max=None, dtype=np.float64):
         import mrcfile
         with mrcfile.open(mrc_file) as mrc:
             data = mrc.data
@@ -51,6 +51,16 @@ class MDFit:
         return cls(experimental_map=data.transpose(header['mapc']-1,header['mapr']-1,header['maps']-1),
                    voxel_size=np.array([voxel_size['x'], voxel_size['y'], voxel_size['z']]), 
                    origin=np.array([header['origin']['x'], header['origin']['y'], header['origin']['z']]))
+    
+    @classmethod
+    def from_dimensions(cls,min_coords,max_coords,voxel_size, dtype=np.float64):
+        min_coords=np.asarray(min_coords,dtype=dtype)
+        max_coords=np.asarray(max_coords,dtype=dtype)
+        voxel_size=np.asarray(voxel_size,dtype=np.int64)
+
+        n_voxels=np.ceil((max_coords-min_coords)/voxel_size).astype(int)
+        origin=(min_coords+max_coords)/2-voxel_size*n_voxels/2+voxel_size/2
+        return cls(np.empty(n_voxels[::-1],dtype=dtype),voxel_size=voxel_size,origin=origin)
         
     def save_mrc(self, mrc_file, experimental=False):
         import mrcfile
@@ -166,7 +176,7 @@ class MDFit:
         elif epsilon is None and self.epsilon is not None:
             epsilon = self.epsilon
 
-        self.coordinates = coordinates - self.origin
+        self.coordinates = coordinates - self.origin + self.voxel_size / 2 # Origin of the coordinates is in the center of the first voxel
         self.sigma = sigma
         self.epsilon = epsilon
         self.setup_map(sigma)
