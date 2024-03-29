@@ -11,42 +11,22 @@ def generate_600_vertices():
         for permutation in itertools.permutations([0, 0] + list(signs), 4):
             vertices.add(tuple(permutation))
 
-    # Three sets of 64 vertices each for the 120-cell, with correct sign combinations
+    # Three sets of 64 vertices each for the 120-cell
     sets = [
-        [phi, phi, phi, phi-2],    # {±φ, ±φ, ±φ, ±φ−2}
-        [1, 1, 1, np.sqrt(5)],     # {±1, ±1, ±1, ±√5}
-        [phi-1, phi-1, phi-1, phi**2]  # {±φ−1, ±φ−1, ±φ−1, ±φ2}
+        [phi, phi, phi, phi-2],        # 64 {±φ, ±φ, ±φ, ±φ−2}
+        [1, 1, 1, np.sqrt(5)],         # 64 {±1, ±1, ±1, ±√5}
+        [phi-1, phi-1, phi-1, phi**2]  # 64 {±φ−1, ±φ−1, ±φ−1, ±φ2}
     ]
     for i, base_set in enumerate(sets, start=1):
         for signs in itertools.product([1, -1], repeat=4):
             for permutation in itertools.permutations([base_set[0]*signs[0], base_set[1]*signs[1], base_set[2]*signs[2], base_set[3]*signs[3]], 4):
                 vertices.add(tuple(permutation))
 
-    # # Even permutations from two sets of 96 vertices
-    # even_sets = [
-    #     [0, phi-1, phi, np.sqrt(5)],  # [0, ±φ−1, ±φ, ±√5]
-    #     [0, phi-2, 1, phi**2]         # [0, ±φ−2, ±1, ±φ2]
-    # ]
-    # for base_set in even_sets:
-    #     for signs in itertools.product([1, -1], repeat=3):
-    #         for seq in itertools.permutations([base_set[0]] + [base_set[1]*signs[0], base_set[2]*signs[1], base_set[3]*signs[2]], 4):
-    #             n_invertions=sum(1 for i in range(len(seq)) for j in range(i+1, len(seq)) if seq[i] > seq[j])
-    #             if n_invertions % 2 == 0:
-    #                 vertices.add(tuple(seq))
-
-    # # 192 vertices from even permutations of [±φ−1, ±1, ±φ, ±2]
-    # base_set = [phi-1, 1, phi, 2]
-    # for signs in itertools.product([1, -1], repeat=4):
-    #     for seq in itertools.permutations([base_set[0]*signs[0], base_set[1]*signs[1], base_set[2]*signs[2], base_set[3]*signs[3]], 4):
-    #         n_invertions=sum(1 for i in range(len(seq)) for j in range(i+1, len(seq)) if seq[i] > seq[j])
-    #         if n_invertions % 2 == 0:
-    #             vertices.add(tuple(seq))
-
     # Even permutations
     even_sets = [
-        [0, phi-1, phi, np.sqrt(5)],  # [0, ±φ−1, ±φ, ±√5]
-        [0, phi-2, 1, phi**2],         # [0, ±φ−2, ±1, ±φ2]
-        [phi-1, 1, phi, 2]
+        [0, phi-1, phi, np.sqrt(5)],  # [0, ±φ−1, ±φ, ±√5] 
+        [0, phi-2, 1, phi**2],        # [0, ±φ−2, ±1, ±φ2]
+        [phi-1, 1, phi, 2]            # [±φ−1, ±1, ±φ, ±2]
     ]
     for even_set in even_sets:
         for permutation in itertools.permutations(list(range(4)), 4):
@@ -58,7 +38,7 @@ def generate_600_vertices():
                 if signs[0] == -1 and even_set[0]==0:
                     continue
                 vertices.add(tuple(seq))
-        print(len(vertices))
+        
 
 
     # Convert set to list and adjust for unit radius
@@ -159,6 +139,12 @@ def generate_5_vertices():
     
     return vertices
 
+def generate_random_vertices(n):
+    ''' Generate n random vertices in 4D space.'''
+    vertices = np.random.randn(n, 4)-0.5
+    vertices /= np.linalg.norm(vertices, axis=1)[:, np.newaxis]
+    return vertices
+
 def is_even_permutation(permutation):
     '''Determine the parity of a permutation.'''
     n = len(permutation)
@@ -247,7 +233,8 @@ def test_all_polytopes_corrected():
         24: generate_24_vertices,
         16: generate_16_vertices,
         8: generate_8_vertices,
-        5: generate_5_vertices
+        5: generate_5_vertices,
+        121: lambda: generate_random_vertices(n=121),
     }
     
     for n, generator in polytope_generators.items():
