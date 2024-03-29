@@ -21,8 +21,9 @@ This project implements a molecular density fitting approach that tries to optim
 ## Usage
 
 ### Quick Start
-Here's a quick example to get you started with the `MDFit` class:
+Here's a quick example to get started with the `MDFit` class:
 
+#### Fit particles without a forcefield
 ```python
 import numpy as np
 from coarseactin import MDFit
@@ -45,6 +46,33 @@ md_fit.fit(coordinates, sigma)
 # Access the optimized coordinates and sigma
 optimized_coordinates = md_fit.coordinates
 optimized_sigma = md_fit.sigma
+```
+
+#### Build a simulated map from coordinates
+
+```python
+import coarseactin
+import numpy as np
+
+#Parse the pdb
+scene = coarseactin.Scene.from_pdb('pdb_file.pdb')
+
+#Corrects missing element names
+scene['element']=scene['name'].str[0]
+scene['mass']=scene['element'].replace({'N':14, 'C':12, 'O':16, 'S':32})
+
+#Creates an empty voxel array
+coords=scene.get_coordinates()
+voxel_size=(coords.max()-coords.min())/40 #~40x40x40
+mdfit=coarseactin.MDFit.from_dimensions(min_coords=coords.min()-10,max_coords=coords.max()+10,voxel_size=voxel_size))
+
+#Sets the coordinates
+mdfit.set_coordinates(coords.values(),
+                      sigma=np.ones(coords.shape)*2,
+                      epsilon=scene['mass'].values)
+
+#Saves the density map
+mdfit.save_mrc('sample_map.mrc')
 ```
 
 ## Derivation
