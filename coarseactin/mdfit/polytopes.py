@@ -1,5 +1,6 @@
 import numpy as np
 import itertools
+from scipy.spatial.transform import Rotation
 
 def generate_600_vertices():
     ''' 120-cell vertices'''
@@ -82,7 +83,7 @@ def generate_120_vertices():
                 continue
 
             vertices.append(np.array(seq))
-        print(len(vertices))
+        #print(len(vertices))
     
     # Normalize the vertices to get unit quaternions
     vertices = np.array(vertices)
@@ -144,6 +145,154 @@ def generate_random_vertices(n):
     vertices = np.random.randn(n, 4)-0.5
     vertices /= np.linalg.norm(vertices, axis=1)[:, np.newaxis]
     return vertices
+
+def normalize_quaternions(quaternions):
+    norms = np.linalg.norm(quaternions, axis=1, keepdims=True)
+    return quaternions / norms
+
+def compute_repulsion_forces(quaternions):
+    n = len(quaternions)
+    # Expand quaternions into two matrices to compute pairwise differences
+    q_expanded = np.expand_dims(quaternions, axis=1)  # Shape (n, 1, 4)
+    q_tiled = np.tile(q_expanded, (1, n, 1))  # Shape (n, n, 4)
+    q_transposed = np.transpose(q_tiled, (1, 0, 2))  # Shape (n, n, 4)
+
+    # Compute pairwise differences
+    diff = q_expanded - q_transposed  # Shape (n, n, 4)
+
+    # Compute squared distances with a small epsilon to avoid division by zero
+    dist2 = np.sum(diff**2, axis=2) + 1E-6  # Shape (n, n)
+
+    # Compute force magnitudes (inverse square law)
+    force_magnitude = 1 / dist2  # Shape (n, n)
+
+    # Force vectors
+    force_vectors = diff * np.expand_dims(force_magnitude, axis=2)  # Shape (n, n, 4)
+
+    # Calculate the component of each force vector that is parallel to each quaternion
+    parallel_components = np.sum(force_vectors * q_expanded, axis=2, keepdims=True) * q_expanded  # Shape (n, n, 4)
+
+    # Calculate perpendicular forces by subtracting the parallel component
+    perpendicular_forces = force_vectors - parallel_components  # Shape (n, n, 4)
+
+    # Sum up all perpendicular forces for each quaternion
+    total_forces = np.sum(perpendicular_forces, axis=1)  # Shape (n, 4)
+
+    return total_forces
+
+def optimize_quaternions(n, iterations=10000, initial_learning_rate=10000):
+    # Initialize random quaternions
+    quaternions = np.random.randn(n, 4)
+    quaternions = normalize_quaternions(quaternions)
+    converged=False
+    learning_rate = initial_learning_rate
+    for iteration in range(iterations):
+        forces = compute_repulsion_forces(quaternions)
+
+        # Update quaternion positions
+        quaternions += learning_rate * forces
+
+        # Renormalize to ensure they stay on the 4D unit hypersphere
+        quaternions = normalize_quaternions(quaternions)
+
+        # Reduce learning rate over time
+        learning_rate = initial_learning_rate /n / (1 + 1.5 * iteration)
+
+        # Early stopping condition if forces are sufficiently small
+        if np.max(np.linalg.norm(forces, axis=1)) < 1e-6:
+            print('Converged', iteration)
+            converged=True
+            break
+        
+    if not converged:
+        print('Not Converged', np.max(np.linalg.norm(forces, axis=1)))
+
+    return quaternions
+
+def generate_rotations(n, optimize=0):
+    """
+    Generate a set of rotations represented by quaternions. If the specified number of rotations corresponds
+    to a regular polytope, the vertices of that polytope are used. Otherwise, generates n random rotations and
+    optionally optimizes them for even spacing.
+
+    Regular polytope numbers and their corresponding vertices are:
+    - 300: 600-cell vertices
+    - 60: 120-cell vertices
+    - 12: 24-cell vertices
+    - 8: 16-cell vertices
+    - 5: 5-cell vertices
+    - 4: 8-cell vertices
+
+    Parameters
+    ----------
+    n : int
+        The number of rotations to generate.
+    optimize : int, optional
+        Number of iterations for optimizing the distribution of rotations if n does not correspond to a regular polytope.
+        If optimize is 0, no optimization is performed. Default is 0.
+
+    Returns
+    -------
+    rotations : Rotation
+        A scipy.spatial.transform.Rotation object representing the rotations generated. Rotations are based on unit quaternions.
+    """
+    # Dictionary to map numbers to specific polytope vertex generators
+    polytope_generators = {
+        300: generate_600_vertices,
+        60: generate_120_vertices,
+        12: generate_24_vertices,
+        8: generate_16_vertices,
+        5: generate_5_vertices,
+        4: generate_8_vertices,
+    }
+
+    # Check if the number of vertices can be generated from regular polytopes
+    if n in polytope_generators:
+        vertices = polytope_generators[n]()
+        unique_quaternions = set()
+        for q in vertices:
+            rounded_q = tuple(np.round(q, decimals=8))
+            neg_rounded_q = tuple(np.round(-q, decimals=8))
+            if rounded_q not in unique_quaternions and neg_rounded_q not in unique_quaternions:
+                unique_quaternions.add(rounded_q)
+        vertices = list(unique_quaternions)
+        if optimize:
+            # Optimize these vertices to spread them evenly
+            print('Vertices will not be optimized for regular polytopes')
+    else:   
+        # Generate n random vertices
+        vertices = generate_random_vertices(n)
+        if optimize:
+            # Optimize these vertices to spread them evenly
+            vertices = optimize_quaternions(n, iterations=optimize)
+
+    # Normalize the vertices to make sure they are unit quaternions
+    vertices = normalize_quaternions(vertices)
+
+    # Convert the unit quaternions to rotations
+    rotations = Rotation.from_quat(vertices)
+
+    return rotations
+
+# # Generate and normalize vertices
+# vertices = generate_24cell_vertices()
+# vertices = vertices / np.linalg.norm(vertices, axis=1)[:, None]
+
+# # Unique quaternions, handling floating-point precision
+# unique_quaternions = set()
+# for q in vertices:
+#     rounded_q = tuple(np.round(q, decimals=8))
+#     neg_rounded_q = tuple(np.round(-q, decimals=8))
+#     if rounded_q not in unique_quaternions and neg_rounded_q not in unique_quaternions:
+#         unique_quaternions.add(rounded_q)
+
+# vertices2 = list(unique_quaternions)
+# vertices2.sort()
+
+# # Convert to rotations
+# rotations = R.from_quat(vertices2)
+
+
 
 def is_even_permutation(permutation):
     '''Determine the parity of a permutation.'''
@@ -222,7 +371,9 @@ def is_unit_vector(vertices):
     else:
         return False
 
-# Polytope Generation Functions Defined Previously (Including generate_600_vertices_complete)
+
+
+
 
 # Test Execution for All Polytopes
 def test_all_polytopes_corrected():
@@ -250,3 +401,8 @@ if __name__ == '__main__':
     results = test_all_polytopes_corrected()
     for name, result in results.items():
         print(f'{name}-cell: {result}')
+    generate_rotations(500, optimize=0)
+    generate_rotations(200, optimize=1)
+    generate_rotations(7, optimize=2000)
+    generate_rotations(300, optimize=10)
+    generate_rotations(60, optimize=10)
