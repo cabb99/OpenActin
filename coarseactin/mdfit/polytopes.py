@@ -159,21 +159,23 @@ def compute_repulsion_forces(quaternions):
 
     # Compute pairwise differences
     diff = q_expanded - q_transposed  # Shape (n, n, 4)
+    shadow_diff = q_expanded + q_transposed  # Shape (n, n, 4)
+    diff = np.concatenate([diff, shadow_diff], axis=1)
 
     # Compute squared distances with a small epsilon to avoid division by zero
-    dist2 = np.sum(diff**2, axis=2) + 1E-6  # Shape (n, n)
+    dist2 = np.sum(diff**2, axis=2) + 1E-6  # Shape (n, 2n)
 
     # Compute force magnitudes (inverse square law)
-    force_magnitude = 1 / dist2  # Shape (n, n)
+    force_magnitude = 1 / dist2  # Shape (n, 2n)
 
     # Force vectors
-    force_vectors = diff * np.expand_dims(force_magnitude, axis=2)  # Shape (n, n, 4)
+    force_vectors = diff * np.expand_dims(force_magnitude, axis=2)  # Shape (n, 2n, 4)
 
     # Calculate the component of each force vector that is parallel to each quaternion
-    parallel_components = np.sum(force_vectors * q_expanded, axis=2, keepdims=True) * q_expanded  # Shape (n, n, 4)
+    parallel_components = np.sum(force_vectors * q_expanded, axis=2, keepdims=True) * q_expanded  # Shape (n, 2n, 4)
 
     # Calculate perpendicular forces by subtracting the parallel component
-    perpendicular_forces = force_vectors - parallel_components  # Shape (n, n, 4)
+    perpendicular_forces = force_vectors - parallel_components  # Shape (n, 2n, 4)
 
     # Sum up all perpendicular forces for each quaternion
     total_forces = np.sum(perpendicular_forces, axis=1)  # Shape (n, 4)
