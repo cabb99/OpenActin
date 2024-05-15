@@ -1,7 +1,6 @@
 import pandas
 import numpy as np
 import io
-
 """
 Python library to allow easy handling of coordinate files for molecular dynamics using pandas DataFrames.
 """
@@ -16,6 +15,7 @@ _protein_residues = {'ALA': 'A', 'CYS': 'C', 'ASP': 'D', 'GLU': 'E',
                      'PRO': 'P', 'GLN': 'Q', 'ARG': 'R', 'SER': 'S',
                      'THR': 'T', 'VAL': 'V', 'TRP': 'W', 'TYR': 'Y'}
 
+pandas.set_option("future.no_silent_downcasting", True)
 
 class Scene(pandas.DataFrame):
     # Initialization
@@ -56,7 +56,7 @@ class Scene(pandas.DataFrame):
         # Map chain index to index
         if 'chain_index' not in self.columns:
             chain_map = {b: a for a, b in enumerate(self['chainID'].unique())}
-            self['chain_index'] = self['chainID'].replace(chain_map)
+            self['chain_index'] = self['chainID'].replace(chain_map).astype(int)
 
         # Map residue to index
         if 'res_index' not in self.columns:
@@ -65,7 +65,7 @@ class Scene(pandas.DataFrame):
                 residues = (chain['resSeq'].astype(str) + chain['iCode'].astype(str))
                 unique_residues = residues.unique()
                 dict(zip(unique_residues, range(len(unique_residues))))
-                resmap += [residues.replace(dict(zip(unique_residues, range(len(unique_residues)))))]
+                resmap += [residues.replace(dict(zip(unique_residues, range(len(unique_residues))))).astype(int)]
             self['res_index'] = pandas.concat(resmap)
 
         # Add metadata
