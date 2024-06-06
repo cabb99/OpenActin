@@ -138,11 +138,20 @@ class MDFit:
                [0,self.voxel_size[1]*self.n_voxels[1]/10,0],\
                [0,0,self.voxel_size[2]*self.n_voxels[2]/10]
     
-    def update_force(self,simulation, force=None, force_array=None):
+    def update_coordinates(self,simulation):
+        import openmm
+        state=simulation.context.getState(getPositions=True)
+        positions=state.getPositions()
+        coordinates=np.array(positions.value_in_unit(openmm.unit.angstrom))
+        self.set_coordinates(coordinates)
+
+    def update_force(self, simulation, update_coordinates=True, k=3200, force=None, force_array=None):
+        if update_coordinates:
+            self.update_coordinates(simulation)
         if force is None:
             force=self.force
         if force_array is None:
-            force_array=3200*self.dcorr_coef()[:,:3]
+            force_array=k*self.dcorr_coef()[:,:3]
         tabulated_function = self.force.getTabulatedFunction(0)
         params = tabulated_function.getFunctionParameters()
         params[2] = force_array.T.ravel()
