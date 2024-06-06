@@ -273,7 +273,6 @@ def generate_rotations(n, optimize=0):
 
     # Convert the unit quaternions to rotations
     rotations = Rotation.from_quat(vertices)
-
     return rotations
 
 # # Generate and normalize vertices
@@ -408,3 +407,7 @@ if __name__ == '__main__':
     generate_rotations(7, optimize=2000)
     generate_rotations(300, optimize=10)
     generate_rotations(60, optimize=10)
+
+    for n in [300, 60, 24, 16, 8, 5, 121]:
+        rotations = generate_rotations(n, optimize=0)
+        print(f'{n}: {len(rotations.as_quat())}')
