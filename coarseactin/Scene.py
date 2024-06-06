@@ -317,7 +317,7 @@ class Scene(pandas.DataFrame):
         # Write pdb file
         lines = ''
         for i, atom in pdb_table.iterrows():
-            line = f'ATOM  {i:>5} {atom["name"]:^4} {atom["resName"]:<3} {atom["chainID"]}{atom["resSeq"]:>4}' + \
+            line = f'ATOM  {i%100000:>5} {atom["name"]:^4} {atom["resName"]:<3} {atom["chainID"]}{atom["resSeq"]:>4}' + \
                    '    ' + \
                    f'{atom.x:>8.3f}{atom.y:>8.3f}{atom.z:>8.3f}' + ' ' * 22 + f'{atom.element:2}' + ' ' * 2
             assert len(line) == 80, f'An item in the atom table is longer than expected\n{line}'
@@ -372,14 +372,14 @@ class Scene(pandas.DataFrame):
         pdbx_table = self.copy()
         pdbx_table['serial'] = np.arange(1, len(self) + 1) if 'serial' not in pdbx_table else pdbx_table['serial']
         pdbx_table['name'] = 'A' if 'name' not in pdbx_table else pdbx_table['name'].str.strip().replace('', '.')
-        pdbx_table['altLoc'] = '?' if 'altLoc' not in pdbx_table else pdbx_table['altLoc'].str.strip().replace('', '.')
+        pdbx_table['altLoc'] = '?' if 'altLoc' not in pdbx_table else pdbx_table['altLoc'].fillna('').str.strip().replace('', '.')
         pdbx_table['resName'] = 'R' if 'resName' not in pdbx_table else pdbx_table['resName'].str.strip().replace('',
                                                                                                                   '.')
         pdbx_table['chainID'] = 'C' if 'chainID' not in pdbx_table else pdbx_table['chainID'].str.strip().replace('',
                                                                                                                   '.')
         pdbx_table['resSeq'] = 1 if 'resSeq' not in pdbx_table else pdbx_table['resSeq']
         pdbx_table['resIC'] = 1 if 'resIC' not in pdbx_table else pdbx_table['resIC']
-        pdbx_table['iCode'] = '' if 'iCode' not in pdbx_table else pdbx_table['iCode'].str.strip().replace('', '.')
+        pdbx_table['iCode'] = '' if 'iCode' not in pdbx_table else pdbx_table['iCode'].fillna('').str.strip().replace('', '.')
         assert 'x' in pdbx_table.columns, 'Coordinate x not in particle definition'
         assert 'y' in pdbx_table.columns, 'Coordinate x not in particle definition'
         assert 'z' in pdbx_table.columns, 'Coordinate x not in particle definition'
