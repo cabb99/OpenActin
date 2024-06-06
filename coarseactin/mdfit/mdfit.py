@@ -477,15 +477,16 @@ def sim_map(coordinates, n_voxels ,voxel_size ,sigma, epsilon, padding, multipli
     
     #Calculate sim
     sim=np.zeros((k_dim,j_dim,i_dim), dtype=np.float64) #(z,y,x)
-    for n in prange(n_dim):
+    for n in range(n_dim):
         eps_n=epsilon[n]
         i_min,i_max,j_min,j_max,k_min,k_max=limits[n]
-        for k in range(k_min,k_max+1):
+        for k in prange(k_min,k_max+1):
             k=(k-padding)%k_dim
-            for j in range(j_min,j_max+1):
+            for j in prange(j_min,j_max+1):
                 j=(j-padding)%j_dim
-                for i in range(i_min,i_max+1):
+                for i in prange(i_min,i_max+1):
                     i=(i-padding)%i_dim
+                    #np.add.at(sim, (k, j, i), eps_n * dphix[n, i] * dphiy[n, j] * dphiz[n, k])
                     sim[k,j,i]+=eps_n*dphix[n,i]*dphiy[n,j]*dphiz[n,k]
     return sim
 
