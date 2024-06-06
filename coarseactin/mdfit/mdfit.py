@@ -56,7 +56,7 @@ class MDFit:
     def from_dimensions(cls,min_coords,max_coords,voxel_size, dtype=np.float64):
         min_coords=np.asarray(min_coords,dtype=dtype)
         max_coords=np.asarray(max_coords,dtype=dtype)
-        voxel_size=np.asarray(voxel_size,dtype=np.int64)
+        voxel_size=np.asarray(voxel_size,dtype=dtype)
 
         n_voxels=np.ceil((max_coords-min_coords)/voxel_size).astype(int)
         origin=(min_coords+max_coords)/2-voxel_size*n_voxels/2+voxel_size/2
