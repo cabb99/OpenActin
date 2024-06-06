@@ -13,11 +13,15 @@ class MDFit:
         self.experimental_map = np.asarray(experimental_map, dtype=self.dtype)
         if voxel_size is None:
             self.voxel_size = np.array([1, 1, 1], dtype=self.dtype)
+        elif type(voxel_size) is np.recarray:
+            self.voxel_size=np.array([voxel_size['x'],voxel_size['y'],voxel_size['z']],dtype=float)
         else:
             self.voxel_size = np.asarray(voxel_size, dtype=self.dtype)
 
         if origin is None:
             self.origin = np.array([0, 0, 0], dtype=self.dtype)
+        elif type(origin) is np.recarray:
+            self.origin = np.array([origin['x'],origin['y'],origin['z']],dtype=float)
         else:
             self.origin = np.asarray(origin, dtype=self.dtype)
 
