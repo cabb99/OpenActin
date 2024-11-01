@@ -161,6 +161,7 @@ class MDFit:
         params[2] = force_array.T.ravel()
         tabulated_function.setFunctionParameters(*params)
         force.updateParametersInContext(simulation.context)
+        return force_array
             
 
     def set_coordinates(self, coordinates, sigma=None, epsilon=None):
@@ -417,6 +418,10 @@ class MDFit:
 
 @vectorize([float64(float64)], nopython=True)
 def numba_erf(x):
+    return math.erf(x)
+
+@vectorize([float64(float64)], target='cuda')
+def cuda_erf(x):
     return math.erf(x)
 
 @jit(nopython=True)
