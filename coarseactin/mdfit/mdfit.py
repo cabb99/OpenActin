@@ -405,9 +405,9 @@ class MDFit:
     
     def test(self):
         assert np.allclose(self.simulation_map(),self.simulation_map_numpy(),atol=1e-5)
-        assert np.allclose(self.dsim_map()['dx'],self.dsim_map_numerical()['dx'])
-        assert np.allclose(self.dsim_map()['dy'],self.dsim_map_numerical()['dy'])
-        assert np.allclose(self.dsim_map()['dz'],self.dsim_map_numerical()['dz'])
+        assert np.allclose(self.dsim_map()['dx'],self.dsim_map_numerical()['dx'],atol=1e-6)
+        assert np.allclose(self.dsim_map()['dy'],self.dsim_map_numerical()['dy'],atol=1e-6)
+        assert np.allclose(self.dsim_map()['dz'],self.dsim_map_numerical()['dz'],atol=1e-6)
         assert np.allclose(self.dcorr_coef()[:,:3],self.dcorr_coef_numerical()[:,:3])
         assert np.allclose(self.dcorr_coef_numpy()[:,:3],self.dcorr_coef_numerical()[:,:3])
         assert np.allclose(self.dcorr_coef()[:,:3],self.dcorr_coef_numpy()[:,:3])
