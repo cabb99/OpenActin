@@ -21,7 +21,7 @@ import numpy as np
 import configparser
 #import prody
 import scipy.spatial.distance as sdist
-import os
+from pathlib import Path
 from . import utils
 from typing import Optional
 
@@ -29,7 +29,7 @@ from typing import Optional
 
 __author__ = 'Carlos Bueno'
 __version__ = '0.3'
-__location__ = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
+__location__ = Path(__file__).resolve().parent
 _ef = 1 * unit.kilocalorie / unit.kilojoule  # energy scaling factor
 _df = 1 * unit.angstrom / unit.nanometer  # distance scaling factor
 _af = 1 * unit.degree / unit.radian  # angle scaling factor
@@ -64,7 +64,8 @@ def create_actin(length: int=100,
                                               [0., 1., 0.],
                                               [0., 0., 1.]]),
                  translation: np.array=np.array([5000, 5000, 5000]),
-                 template_file: str="coarseactin/data/CaMKII_bound_with_actin.csv",
+                 extra_steps = 0,
+                 template_file: Path=__location__/"data"/"CaMKII_bound_with_actin.csv",
                  abp: Optional[str]=None) -> pd.DataFrame:
     """
     Creates an actin fiber decorated (or not) with actin binding proteins.
@@ -79,6 +80,8 @@ def create_actin(length: int=100,
         Rotation matrix (3x3) to rotate the actin filament. If unity the fiber will extend in the Z direction.
     translation: np.array, default:np.array([5000, 5000, 5000]),
         Translation matrix (3) to translate the actin filament after the rotation.
+    extra_steps: int, default: 0
+        Number of extra actin steps to shift the actin filament
     template_file: str, defaul: "coarseactin/data/CaMKII_bound_with_actin.csv",
         File containing the information of a sample actin monomer decorated with ABPS
     abp: str, Optional, default: None
@@ -132,8 +135,18 @@ def create_actin(length: int=100,
     model.loc[model[(model['resSeq'] == resmax) & model['resName'].isin(['ACT'])].index, 'resName'] = 'ACD'
     model.loc[model[(model['resSeq'] == resmin) & model['resName'].isin(['ACT'])].index, 'resName'] = 'ACD'
 
+    #Calculate the center of the model
+    center = model[['x', 'y', 'z']].mean()
+    
+    #Shift the model n steps
+    extra_rot = np.linalg.matrix_power(rot, extra_steps)
+    extra_trans = trans * extra_steps
+    model[['x', 'y', 'z']] = np.dot(model[['x', 'y', 'z']], extra_rot) + extra_trans
+    
     # Center the model
-    model[['x', 'y', 'z']] -= model[['x', 'y', 'z']].mean()
+    model[['x', 'y', 'z']] -= center
+
+    
 
     # Move the model
     model[['x', 'y', 'z']] = np.dot(model[['x', 'y', 'z']], rotation) + translation
