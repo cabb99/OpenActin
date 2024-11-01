@@ -3,6 +3,7 @@ import math
 from numba import jit, prange, vectorize, float64
 from scipy.special import erf
 from pathlib import Path
+import logging
 
 
 class MDFit:
@@ -13,6 +14,7 @@ class MDFit:
         self.experimental_map = np.asarray(experimental_map, dtype=self.dtype)
         if voxel_size is None:
             self.voxel_size = np.array([1, 1, 1], dtype=self.dtype)
+            logging.debug("Voxel size not provided. Assuming 1 Angstrom for all dimensions.")
         elif type(voxel_size) is np.recarray:
             self.voxel_size=np.array([voxel_size['x'],voxel_size['y'],voxel_size['z']],dtype=float)
         else:
@@ -20,6 +22,7 @@ class MDFit:
 
         if origin is None:
             self.origin = np.array([0, 0, 0], dtype=self.dtype)
+            logging.debug("Origin not provided. Assuming (0, 0, 0).")
         elif type(origin) is np.recarray:
             self.origin = np.array([origin['x'],origin['y'],origin['z']],dtype=float)
         else:
@@ -30,7 +33,6 @@ class MDFit:
             raise ValueError("voxel_size must be a one-dimensional numpy array of size 3.")
         if self.experimental_map.ndim != 3:
             raise ValueError("experimental_map must be a 3D numpy array.")
-
         
         self.n_voxels = np.array(self.experimental_map.shape)[::-1]
         self.padding = None
@@ -39,6 +41,22 @@ class MDFit:
         self.sigma = None
         self.epsilon = None
         self.force = None
+
+    @property
+    def experimental_map(self):
+        return self._experimental_map
+    
+    @experimental_map.setter
+    def experimental_map(self, value):
+        """ Store the experimental map normalized with zero mean and zero unit standard deviation. """
+        self._experimental_map = value
+        self.experimental_map_mean = self._experimental_map.mean()
+        self._experimental_map -= self.experimental_map.mean()
+        self.experimental_map_std = self._experimental_map.std()
+        if self.experimental_map_std > 0:
+            self._experimental_map /= self.experimental_map_std
+        else:
+            logging.warning("The experimental map is uniform. The standard deviation is zero.")
 
     @classmethod
     def from_mrc(cls, mrc_file,cutoff_min=None,cutoff_max=None, dtype=np.float64):
@@ -54,7 +72,8 @@ class MDFit:
             data[data>cutoff_max]=cutoff_max
         return cls(experimental_map=data.transpose(header['mapc']-1,header['mapr']-1,header['maps']-1),
                    voxel_size=np.array([voxel_size['x'], voxel_size['y'], voxel_size['z']]), 
-                   origin=np.array([header['origin']['x'], header['origin']['y'], header['origin']['z']]))
+                   origin=np.array([header['origin']['x'], header['origin']['y'], header['origin']['z']]), 
+                   dtype=dtype)
     
     @classmethod
     def from_dimensions(cls,min_coords,max_coords,voxel_size, dtype=np.float64):
@@ -66,13 +85,27 @@ class MDFit:
         origin=(min_coords+max_coords)/2-voxel_size*n_voxels/2+voxel_size/2
         return cls(np.empty(n_voxels[::-1],dtype=dtype),voxel_size=voxel_size,origin=origin)
         
-    def save_mrc(self, mrc_file, experimental=False):
+    def save_mrc(self, mrc_file, experimental=False, rescale=True):
         import mrcfile
         import datetime
         current_date = datetime.datetime.now().strftime("%Y-%m-%d")
         data_description = [f"Data generated on {current_date}", "Simulated density map."]
 
-        map_data = self.experimental_map if experimental else self.simulation_map()
+        if experimental:
+            map_data = self.experimental_map
+        else:
+            map_data = self.simulation_map()
+            if rescale:
+                map_data -= map_data.mean()
+                map_data /= map_data.std()
+            else:
+                map_data -= self.experimental_map_mean
+                map_data /= self.experimental_map_std
+
+        # Revert the map normalization. It will revert the simulation map too with the experimental map scale
+        map_data *= self.experimental_map_std
+        map_data += self.experimental_map_mean
+
         # Assuming mrc is your MRC file object after opening it with mrcfile
         with mrcfile.new(mrc_file, overwrite=True) as mrc:
             mrc.set_data(map_data.astype(np.float32))
@@ -229,8 +262,15 @@ class MDFit:
             vp=vp[:,p:-p, p:-p, p:-p]
         return vp
 
-    def simulation_map(self):
-        return sim_map(self.coordinates, self.n_voxels, self.voxel_size, self.sigma, self.epsilon, self.padding, 5)
+    def simulation_map(self, normalize=False):
+        sim=sim_map(self.coordinates, self.n_voxels, self.voxel_size, self.sigma, self.epsilon, self.padding, 5)
+        if normalize:
+            sim_map_mean = sim.mean()
+            sim_map_std = sim.std()
+            return (sim - sim_map_mean) / sim_map_std
+        else:
+            return sim
+    
     
     def simulation_map_numpy(self):
         sigma=self.sigma*np.sqrt(2)
@@ -248,7 +288,11 @@ class MDFit:
 
     def corr_coef(self):
         simulation_map=self.simulation_map()
-        return (simulation_map*self.experimental_map).sum()/np.sqrt((simulation_map**2).sum()*(self.experimental_map**2).sum())
+        sim_map_mean = simulation_map.mean()
+        sim_map_std = simulation_map.std()
+        #return (simulation_map*self.experimental_map).sum()/np.sqrt((simulation_map**2).sum()*(self.experimental_map**2).sum())
+        return ((simulation_map - sim_map_mean)/sim_map_std * (self.experimental_map)).mean()
+
 
     def dcorr_coef_numerical(self, delta=1e-5):
         num_derivatives = np.zeros((self.coordinates.shape[0],7))
@@ -387,18 +431,18 @@ class MDFit:
     def dcorr_coef_numpy(self):
         dsim=self.dsim_map()
         dsim=np.array([dsim['dx'],dsim['dy'],dsim['dz'],dsim['dsx'],dsim['dsy'],dsim['dsz'],dsim['eps']]).transpose(1,0,2,3,4)
-        sim=self.simulation_map()
+        sim_raw=self.simulation_map()
+        sim_raw_mean = sim_raw.mean()
+        sim_raw_std = sim_raw.std()
+        sim=(sim_raw-sim_raw_mean)/sim_raw_std
         exp=self.experimental_map
-        
-        #
-        num1=np.sum(dsim*exp[None,None,:,:,:],axis=(2,3,4))
-        den1=np.sqrt(np.sum(sim**2)) * np.sqrt(np.sum(exp**2))
-        
-        num2 = np.sum(dsim*sim[None,None,:,:,:],axis=(2,3,4))* np.sum(sim * exp)
-        den2 = np.sum(sim**2) * den1
+        cc = np.mean(sim*exp)
+        num1=np.mean(dsim*exp[None,None,:,:,:],axis=(2,3,4))
+        num2 =np.mean(dsim*sim[None,None,:,:,:],axis=(2,3,4))
+
         
         # Final equation
-        return ((num1 / den1) - (num2 / den2))
+        return (num1 - cc * num2) / sim_raw_std
     
     def dcorr_coef(self):
         return dcorr_v3(self.coordinates,self.n_voxels,self.voxel_size,self.sigma, self.epsilon, self.experimental_map,self.padding,5)
@@ -410,7 +454,7 @@ class MDFit:
         assert np.allclose(self.dsim_map()['dz'],self.dsim_map_numerical()['dz'],atol=1e-6)
         assert np.allclose(self.dcorr_coef()[:,:3],self.dcorr_coef_numerical()[:,:3])
         assert np.allclose(self.dcorr_coef_numpy()[:,:3],self.dcorr_coef_numerical()[:,:3])
-        assert np.allclose(self.dcorr_coef()[:,:3],self.dcorr_coef_numpy()[:,:3])
+        assert np.allclose(self.dcorr_coef()[:,:3],self.dcorr_coef_numpy()[:,:3],atol=1e-7)
         assert np.allclose(self.dcorr_coef()[:,3:],self.dcorr_coef_numpy()[:,3:],atol=1e-5)
         assert np.allclose(dcorr_v3(self.coordinates,self.n_voxels,self.voxel_size,self.sigma,self.epsilon,self.experimental_map,self.padding,5),self.dcorr_coef_numpy(),atol=1e-5)
         
@@ -570,6 +614,14 @@ def dcorr_v3(coordinates, n_voxels ,voxel_size ,sigma, epsilon, experimental_map
                 for i in range(i_min,i_max+1):
                     i=(i-padding)%i_dim
                     sim[k,j,i]+=eps_n*dphix[n,i]*dphiy[n,j]*dphiz[n,k]
+
+    #Normalize sim
+    sim_mean = np.mean(sim)
+    sim_std = np.std(sim)
+    sim = (sim - sim_mean) / sim_std
+
+    #Calculate correlation coefficient
+    cc = np.mean(sim * exp)
     
     #Calculate derivatives
     num1 = np.zeros((n_dim,7), dtype=np.float64)
@@ -600,11 +652,10 @@ def dcorr_v3(coordinates, n_voxels ,voxel_size ,sigma, epsilon, experimental_map
                     num2[n,5]+=eps_n*dphix[n,i]*dphiy[n,j]*ddphiz_ds[n,k]*sim_val
                     num2[n,6]+=dphix[n,i]*dphiy[n,j]*dphiz[n,k]*sim_val
     
-    num2*=np.sum(sim * exp) #(n,7)
-    den1=np.sqrt(np.sum(sim**2)) * np.sqrt(np.sum(exp**2)) #(,)
-    den2=np.sum(sim**2) * den1 #(,)
+    num2*=cc #(n,7)
+    den=sim_std * i_dim* j_dim * k_dim #(,)
     
-    result=((num1 / den1) - (num2 / den2)) #(n,7)
+    result=((num1 - num2) / den) #(n,7)
     return result
 
 
