@@ -7,14 +7,28 @@ Handles the system class for openMM
 import warnings
 
 #Import openmm
+
 try:
-    import openmm
-    import openmm.app
-    from simtk import unit
-except ModuleNotFoundError:
-    import openmm
+    # Try legacy (openmm<8) first
+    import simtk.openmm as openmm
     import simtk.openmm.app
     import simtk.unit as unit
+except ModuleNotFoundError as legacy_err:
+    try:
+        # Try (openmm>=8)
+        import openmm
+        import openmm.app
+        from openmm import unit
+    except ModuleNotFoundError as modern_err:
+        # Neither worked – raise with both error messages
+        raise ImportError(
+            "Could not import OpenMM in either namespace:\n"
+            f"- Legacy (simtk) import error: {legacy_err}\n"
+            f"- Modern (openmm) import error: {modern_err}\n\n"
+            "Please install OpenMM ≥8:\n"
+            "    conda install -c conda-forge openmm\n"
+            "or see https://openmm.org for other options."
+        )
 
 import pandas as pd
 import numpy as np

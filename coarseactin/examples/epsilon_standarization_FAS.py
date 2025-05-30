@@ -136,13 +136,14 @@ if __name__ == '__main__':
     # Simulation #
     ##############
     try:
-        import openmm
-        import openmm.app
-        from simtk import unit as u
+        import simtk.openmm as openmm
+        import simtk.openmm.app
+        import simtk.openmm.unit as u
     except ModuleNotFoundError:
         import openmm
-        import simtk.openmm.app
-        import simtk.unit as u
+        import openmm.app
+        from openmm import unit as u
+
     import time
     from sys import stdout
 
