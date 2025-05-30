@@ -42,7 +42,7 @@ install:
 
 
 script:
-  - pytest -v --cov=coarseactin coarseactin/tests/
+  - pytest -v --cov=openactin openactin/tests/
 
 notifications:
     email: false
