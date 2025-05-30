@@ -4,12 +4,12 @@ import coarseactin
 # Create the system
 s = coarseactin.system()
 
-actin = coaseactin.Actin()
-camkii = coaseactin.CaMKII(some properties)
+actin = openactin.Actin()
+camkii = openactin.CaMKII(some properties)
 
 # Add the system components
-s.add_molecule(coaseactin.actin,20,...)
-s.add_molecule(coaseactin.camkii,20,...)
+s.add_molecule(openactin.actin,20,...)
+s.add_molecule(openactin.camkii,20,...)
 
 # List elements
 print(s.molecules)

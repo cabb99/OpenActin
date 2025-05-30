@@ -1,6 +1,4 @@
-include LICENSE
-include MANIFEST.in
-include versioneer.py
+include CODE_OF_CONDUCT.md
 
-graft coarseactin
+graft openactin
 global-exclude *.py[cod] __pycache__ *.so
