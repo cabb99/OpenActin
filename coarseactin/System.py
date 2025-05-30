@@ -12,7 +12,7 @@ try:
     import openmm.app
     from simtk import unit
 except ModuleNotFoundError:
-    import openmm
+    import simtk.openmm as openmm
     import simtk.openmm.app
     import simtk.unit as unit
 

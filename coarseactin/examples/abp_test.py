@@ -200,7 +200,7 @@ if __name__ == '__main__':
         import openmm.app
         from simtk import unit as u
     except ModuleNotFoundError:
-        import openmm
+        import simtk.openmm as openmm
         import simtk.openmm.app
         import simtk.openmm.unit as u
 
