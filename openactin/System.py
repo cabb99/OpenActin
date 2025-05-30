@@ -79,7 +79,7 @@ def create_actin(length: int=100,
         Rotation matrix (3x3) to rotate the actin filament. If unity the fiber will extend in the Z direction.
     translation: np.array, default:np.array([5000, 5000, 5000]),
         Translation matrix (3) to translate the actin filament after the rotation.
-    template_file: str, defaul: "openactin/data/CaMKII_bound_with_actin.csv",
+    template_file: str, default: "openactin/data/CaMKII_bound_with_actin.csv",
         File containing the information of a sample actin monomer decorated with ABPS
     abp: str, Optional, default: None
         Name of the bound actin binding protein
