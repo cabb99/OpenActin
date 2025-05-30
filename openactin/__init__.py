@@ -1,7 +1,4 @@
-"""
-openactinModel
-Coarse Grained Model of Actin
-"""
+"""A coarse-grained model of actin filaments based on Voth 4-particle model"""
 
 # Add imports here
 #from .system import *
@@ -15,10 +12,6 @@ from .utils.ChainNameGenerator import chain_name_generator
 from .mdfit import MDFit
 
 # Handle versions
-from ._version import get_versions
-versions = get_versions()
-__version__ = versions['version']
-__git_revision__ = versions['full-revisionid']
-del get_versions, versions
+from ._version import __version__
 
 
