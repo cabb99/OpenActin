@@ -1,5 +1,5 @@
 """
-CoarseActinModel
+openactinModel
 Coarse Grained Model of F-Actin
 """
 import sys
@@ -22,7 +22,7 @@ except:
 
 setup(
     # Self-descriptive entries which should always be present
-    name='coarseactin',
+    name='openactin',
     author='Carlos Bueno',
     author_email='carlos.bueno@rice.edu',
     description=short_description[0],
@@ -56,10 +56,10 @@ setup(
 
     # Manual control if final package is compressible or not, set False to prevent the .egg from being made
     # zip_safe=False,
-    url = 'https://github.com/cabb99/coarseactin', 
+    url = 'https://github.com/cabb99/openactin', 
     download_url = '',
     keywords = ['actin', 'forcefield', 'openmm'],
-    package_data={'coarseactin': glob.glob("data/*")},
+    package_data={'openactin': glob.glob("data/*")},
     classifiers=[
         'Development Status :: 3 - Alpha', 
         'Intended Audience :: Science/Research', 

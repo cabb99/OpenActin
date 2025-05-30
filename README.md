@@ -1,8 +1,8 @@
-CoarseActinModel
+openactinModel
 ==============================
 [//]: # (Badges)
-[![Travis Build Status](https://travis-ci.com/cabb99/CoarseActinModel.svg?branch=master)](https://travis-ci.com/REPLACE_WITH_OWNER_ACCOUNT/CoarseActinModel)
-[![codecov](https://codecov.io/gh/REPLACE_WITH_OWNER_ACCOUNT/CoarseActinModel/branch/master/graph/badge.svg)](https://codecov.io/gh/REPLACE_WITH_OWNER_ACCOUNT/CoarseActinModel/branch/master)
+[![Travis Build Status](https://travis-ci.com/cabb99/openactinModel.svg?branch=master)](https://travis-ci.com/REPLACE_WITH_OWNER_ACCOUNT/openactinModel)
+[![codecov](https://codecov.io/gh/REPLACE_WITH_OWNER_ACCOUNT/openactinModel/branch/master/graph/badge.svg)](https://codecov.io/gh/REPLACE_WITH_OWNER_ACCOUNT/openactinModel/branch/master)
 
 A Coarse Grained model of Actin.
 
