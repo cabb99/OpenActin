@@ -7,7 +7,7 @@ import numpy as np
 import warnings
 import prody
 import itertools
-import coarseactin
+import openactin
 import matplotlib.pyplot as plt
 import subprocess
 
@@ -111,7 +111,7 @@ class Simulation:
         self.pdbx = mdtraj.formats.pdbx.load_pdbx(simulation['cif'])
         self.dcd = mdtraj.load_dcd(simulation['dcd'], top=self.pdbx)
         self.dcd.unitcell_vectors = np.array([[[box_size, 0, 0], [0, box_size, 0], [0, 0, box_size]]] * len(self.dcd))
-        self.scene = coarseactin.Scene.from_cif(simulation['cif'])
+        self.scene = openactin.Scene.from_cif(simulation['cif'])
         self.binding_site_indices=None
         self.binding_site_distances_abp=None
         self.binding_site_rmsd_abp = None
@@ -384,7 +384,7 @@ class Simulation:
     def compute_persistence_length(self, return_correlations=False):
         import scipy.optimize
         # Get actin template file (The center of the actin fiber is at 0,0,0)
-        template_file = "/home/cb/Development/CoarseGrainedActin/coarseactin/data/CaMKII_bound_with_actin.csv"
+        template_file = "/home/cb/Development/CoarseGrainedActin/openactin/data/CaMKII_bound_with_actin.csv"
         bound_actin_template = pd.read_csv(template_file, index_col=0)
         actin_sample = bound_actin_template[bound_actin_template['name'].isin(['A1', 'A2', 'A3', 'A4'])].copy()
         actin_sample[['x', 'y', 'z']].mean()
