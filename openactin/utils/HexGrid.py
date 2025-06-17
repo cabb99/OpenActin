@@ -42,3 +42,11 @@ class HexGrid():
                 mapString += l[y][x]
             mapString += "\n"
         print(mapString)
+
+if __name__ == "__main__":
+    print("Demo: HexGrid with radius 3")
+    grid = HexGrid(3)
+    print("Coordinates:")
+    print(grid.coords())
+    print("Grid visualization:")
+    grid.show()
