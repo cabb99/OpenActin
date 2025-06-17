@@ -29,13 +29,23 @@ class HexGrid():
         return coords
 
     def show(self):
+        # Compute row and column indices for all tiles
+        row_indices = [self.radius - 1 - b for (a, b, c) in self.tiles.keys()]
+        col_indices = [a - c + (2 * (self.radius - 1)) for (a, b, c) in self.tiles.keys()]
+        min_row, max_row = min(row_indices), max(row_indices)
+        min_col, max_col = min(col_indices), max(col_indices)
+
+        # Initialize grid with correct size
         l = []
-        for y in range(20):
-            l.append([])
-            for x in range(60):
-                l[y].append(".")
+        for y in range(max_row - min_row + 1):
+            l.append(["."] * (max_col - min_col + 1))
+
+        # Place tiles using offset
         for (a, b, c), tile in self.tiles.items():
-            l[self.radius - 1 - b][a - c + (2 * (self.radius - 1))] = self.tiles[a, b, c]
+            row = self.radius - 1 - b - min_row
+            col = a - c + (2 * (self.radius - 1)) - min_col
+            l[row][col] = self.tiles[a, b, c]
+
         mapString = ""
         for y in range(len(l)):
             for x in range(len(l[y])):
@@ -44,9 +54,13 @@ class HexGrid():
         print(mapString)
 
 if __name__ == "__main__":
-    print("Demo: HexGrid with radius 3")
+    print("Demo: HexGrid")
+    
     grid = HexGrid(3)
     print("Coordinates:")
     print(grid.coords())
-    print("Grid visualization:")
-    grid.show()
+    
+    for layers in range(1, 4):
+        grid = HexGrid(layers)
+        print("Grid visualization:")
+        grid.show()
