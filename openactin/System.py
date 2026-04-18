@@ -844,13 +844,19 @@ class openactin:
         self.dihedrals = dihedrals
 
     def Bond_diff(self, coord):
-        # Comparison to starting structure distances
         import scipy.spatial.distance as sdist
-        real_dist = sdist.squareform(sdist.pdist(coord.getPositions(asNumpy=True)))
+        # Accept both OpenMM State/Context and numpy arrays
+        if hasattr(coord, "getPositions"):
+            positions = coord.getPositions(asNumpy=True)
+        elif isinstance(coord, np.ndarray):
+            positions = coord
+        else:
+            raise ValueError("coord must be an OpenMM State/Context or a numpy array of positions")
+        real_dist = sdist.squareform(sdist.pdist(positions))
         for i, b in self.bonds.iterrows():
             self.bonds.at[i, 'xr'] = real_dist[b['i'], b['j']] * 10
         self.bonds['diff'] = ((self.bonds['xr'] - self.bonds['r0']) ** 2) ** .5
-        return self.bonds.groupby('type').mean().sort_values('diff', ascending=False)
+        return self.bonds.groupby('type').mean(numeric_only=True).sort_values('diff', ascending=False)
 
     def clearForces(self):
         """ Removes all forces from the system """
